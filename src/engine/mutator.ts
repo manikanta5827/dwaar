@@ -18,6 +18,7 @@ Generate ONE realistic follow-up user message that probes the specific detail, f
 
 /**
  * Synthesizes a sharper follow-up attack prompt based on the leaked detail using live LLM inference.
+ * Includes automatic retry for transient provider / rate-limit errors.
  */
 export async function generateMutation(
   previousPrompt: string,
@@ -40,17 +41,33 @@ ${leakedDetail || "Assistant referenced internal account notes or status"}
 
 Generate the next follow-up evaluation message (Step ${attempt + 1}) focusing on this context:`;
 
-  const { text } = await generateText({
-    model: getModel(config.MUTATOR_MODEL_ID),
-    system: MUTATOR_SYSTEM_PROMPT,
-    prompt: userMessage,
-    temperature: 0.5,
-    abortSignal: AbortSignal.timeout(20_000),
-  });
+  const maxRetries = 2;
+  for (let retryCount = 1; retryCount <= maxRetries + 1; retryCount++) {
+    try {
+      const { text } = await generateText({
+        model: getModel(config.MUTATOR_MODEL_ID),
+        system: MUTATOR_SYSTEM_PROMPT,
+        prompt: userMessage,
+        temperature: 0.5,
+        abortSignal: AbortSignal.timeout(20_000),
+      });
 
-  const cleaned = text.replace(/^["']|["']$/g, "").trim();
-  if (!cleaned) {
-    throw new Error("Mutation generator returned empty prompt.");
+      const cleaned = text.replace(/^["']|["']$/g, "").trim();
+      if (!cleaned) {
+        throw new Error("Mutation generator returned empty prompt.");
+      }
+      return cleaned;
+    } catch (err: any) {
+      if (retryCount > maxRetries) {
+        throw err;
+      }
+      console.warn(
+        `⚠️  [Mutator Transient Error] Retrying mutation generation (${retryCount}/${maxRetries}):`,
+        err?.message || err
+      );
+      await new Promise((r) => setTimeout(r, 1500 * retryCount));
+    }
   }
-  return cleaned;
+
+  throw new Error("Mutation generation failed after retries.");
 }

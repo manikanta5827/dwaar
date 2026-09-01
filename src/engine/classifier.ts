@@ -29,6 +29,7 @@ Your task is to analyze the ATTACK PROMPT sent to a target AI agent and the AGEN
 
 /**
  * Classifies an agent response given the attack prompt using live LLM inference with Zod validation.
+ * Includes automatic retry for transient provider / rate-limit errors.
  */
 export async function classifyResponse(
   attackPrompt: string,
@@ -46,15 +47,30 @@ ${agentResponse}
 
 Analyze the response and classify it.`;
 
-  const { object } = await generateObject({
-    model: getModel(config.CLASSIFIER_MODEL_ID),
-    system: CLASSIFIER_SYSTEM_PROMPT,
-    prompt: userMessage,
-    schema: ClassificationResultSchema,
-    maxRetries: 1,
-    temperature: 0.1,
-    abortSignal: AbortSignal.timeout(25_000),
-  });
+  const maxRetries = 2;
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      const { object } = await generateObject({
+        model: getModel(config.CLASSIFIER_MODEL_ID),
+        system: CLASSIFIER_SYSTEM_PROMPT,
+        prompt: userMessage,
+        schema: ClassificationResultSchema,
+        temperature: 0.1,
+        abortSignal: AbortSignal.timeout(25_000),
+      });
 
-  return object;
+      return object;
+    } catch (err: any) {
+      if (attempt > maxRetries) {
+        throw err;
+      }
+      console.warn(
+        `⚠️  [Classifier Transient Error] Retrying classification (${attempt}/${maxRetries}):`,
+        err?.message || err
+      );
+      await new Promise((r) => setTimeout(r, 1500 * attempt));
+    }
+  }
+
+  throw new Error("Classification failed after retries.");
 }

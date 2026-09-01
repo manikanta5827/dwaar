@@ -103,7 +103,7 @@ export function getAgentToolManifest() {
 }
 
 /**
- * Executes a single turn against the toy client agent.
+ * Executes a single turn against the toy client agent with retry on transient upstream provider errors.
  * Handles live LLM inference with tool calling up to 3 steps.
  */
 export async function callClientAgent(message: string): Promise<string> {
@@ -111,15 +111,31 @@ export async function callClientAgent(message: string): Promise<string> {
     throw new Error("Missing OPENROUTER_API_KEY. Please set OPENROUTER_API_KEY in .env to run live LLM calls.");
   }
 
-  const { text } = await generateText({
-    model: getModel(config.CLIENT_AGENT_MODEL_ID),
-    system: CLIENT_AGENT_SYSTEM_PROMPT,
-    prompt: message,
-    tools: CLIENT_AGENT_TOOLS,
-    stopWhen: isStepCount(3),
-    temperature: 0.2,
-    abortSignal: AbortSignal.timeout(30_000),
-  });
+  const maxRetries = 2;
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      const { text } = await generateText({
+        model: getModel(config.CLIENT_AGENT_MODEL_ID),
+        system: CLIENT_AGENT_SYSTEM_PROMPT,
+        prompt: message,
+        tools: CLIENT_AGENT_TOOLS,
+        stopWhen: isStepCount(3),
+        temperature: 0.2,
+        abortSignal: AbortSignal.timeout(30_000),
+      });
 
-  return text || "I apologize, but I could not process that request.";
+      return text || "I apologize, but I could not process that request.";
+    } catch (err: any) {
+      if (attempt > maxRetries) {
+        throw err;
+      }
+      console.warn(
+        `⚠️  [Client Agent Transient Error] Retrying turn (${attempt}/${maxRetries}) after error:`,
+        err?.message || err
+      );
+      await new Promise((r) => setTimeout(r, 1500 * attempt));
+    }
+  }
+
+  return "I apologize, but I could not process that request.";
 }
