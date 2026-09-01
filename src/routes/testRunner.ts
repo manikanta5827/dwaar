@@ -46,7 +46,7 @@ testRunnerRouter.get("/status", (c) => {
 
 /**
  * GET /api/run-test
- * Server-Sent Events (SSE) stream endpoint to run the live test suite.
+ * Server-Sent Events (SSE) stream endpoint to run the red-teaming test suite.
  */
 testRunnerRouter.get("/run-test", async (c) => {
   if (!hasValidApiKey()) {
@@ -59,13 +59,9 @@ testRunnerRouter.get("/run-test", async (c) => {
     );
   }
 
-  const query = c.req.query();
-  const seedIds = query.seeds ? query.seeds.split(",").map((s) => s.trim()) : undefined;
-
   return streamSSE(c, async (stream) => {
     try {
       await runAdaptiveRedTeamingLoop({
-        selectedSeedIds: seedIds,
         abortSignal: c.req.raw.signal,
         onEvent: async (event: SSEEvent) => {
           await stream.writeSSE({

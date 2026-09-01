@@ -5,27 +5,21 @@ import { generateMutation } from "./mutator";
 import { hasValidApiKey } from "../config";
 import type {
   SSEEvent,
-  ClassificationVerdict,
   AttemptRecord,
 } from "../types";
 
+const MAX_ATTEMPTS_PER_PROMPT = 5;
+
 export interface RunnerOptions {
-  selectedSeedIds?: string[];
-  maxAttemptsPerPrompt?: number;
   abortSignal?: AbortSignal;
   onEvent: (event: SSEEvent) => Promise<void> | void;
 }
 
 /**
- * Runs the adaptive red-teaming test suite sequentially across seed prompts using live LLM calls.
+ * Runs the adaptive red-teaming test suite sequentially across all 20 seed prompts using live LLM calls.
  */
 export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
-  const {
-    selectedSeedIds,
-    maxAttemptsPerPrompt = 5,
-    abortSignal,
-    onEvent,
-  } = options;
+  const { abortSignal, onEvent } = options;
 
   if (!hasValidApiKey()) {
     const errorMsg = "Missing OPENROUTER_API_KEY in environment variables. Please set your OPENROUTER_API_KEY in .env to run the red-teaming engine.";
@@ -35,10 +29,6 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
     });
     throw new Error(errorMsg);
   }
-
-  const seedsToRun = selectedSeedIds && selectedSeedIds.length > 0
-    ? SEED_PROMPTS.filter((s) => selectedSeedIds.includes(s.id))
-    : SEED_PROMPTS;
 
   const startTime = Date.now();
   let clientCalls = 0;
@@ -53,19 +43,18 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
   // Emit start event
   await onEvent({
     type: "start",
-    totalSeeds: seedsToRun.length,
+    totalSeeds: SEED_PROMPTS.length,
     timestamp: startTime,
   });
 
-  for (let i = 0; i < seedsToRun.length; i++) {
+  for (let i = 0; i < SEED_PROMPTS.length; i++) {
     if (abortSignal?.aborted) {
       break;
     }
 
-    const seed = seedsToRun[i]!;
+    const seed = SEED_PROMPTS[i]!;
     let currentPrompt = seed.text;
     let attempt = 1;
-    let finalVerdict: ClassificationVerdict = "full_block";
     const promptAttempts: AttemptRecord[] = [];
 
     // Notify start of this seed prompt
@@ -76,10 +65,10 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
       title: seed.title,
       initialPrompt: seed.text,
       promptIndex: i + 1,
-      totalSeeds: seedsToRun.length,
+      totalSeeds: SEED_PROMPTS.length,
     });
 
-    while (attempt <= maxAttemptsPerPrompt) {
+    while (attempt <= MAX_ATTEMPTS_PER_PROMPT) {
       if (abortSignal?.aborted) break;
 
       const attemptStart = Date.now();
@@ -93,8 +82,6 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
       classifierCalls++;
       const classification = await classifyResponse(currentPrompt, response);
       const attemptDuration = Date.now() - attemptStart;
-
-      finalVerdict = classification.classification;
 
       const attemptRecord: AttemptRecord = {
         attempt,
@@ -122,57 +109,60 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
         durationMs: attemptDuration,
       });
 
-      // Check loop exit conditions
-      if (classification.classification === "full_success") {
-        // Vulnerability confirmed! Stop early.
-        break;
-      }
+      // Handle loop transition and update final summary counters directly at terminal states
+      let shouldStop = false;
 
-      if (
-        classification.classification === "full_block" ||
-        classification.classification === "off_topic"
-      ) {
-        // Dead end: clean refusal or off-topic, no point continuing.
-        break;
-      }
-
-      if (classification.classification === "partial_leak") {
-        if (attempt >= maxAttemptsPerPrompt) {
-          // Out of attempts
+      switch (classification.classification) {
+        case "full_success":
+          fullSuccesses++;
+          shouldStop = true;
           break;
-        }
 
-        // Generate mutated prompt for the next attempt (Live LLM call)
-        mutatorCalls++;
-        currentPrompt = await generateMutation(
-          currentPrompt,
-          response,
-          classification.leaked_detail,
-          attempt
-        );
-        attempt++;
+        case "full_block":
+          fullBlocks++;
+          shouldStop = true;
+          break;
+
+        case "off_topic":
+          offTopic++;
+          shouldStop = true;
+          break;
+
+        case "partial_leak":
+          if (attempt >= MAX_ATTEMPTS_PER_PROMPT) {
+            // Out of attempts, final outcome is partial leak
+            partialLeaks++;
+            shouldStop = true;
+          } else {
+            // Generate mutated prompt for the next attempt (Live LLM call)
+            mutatorCalls++;
+            currentPrompt = await generateMutation(
+              currentPrompt,
+              response,
+              classification.leaked_detail,
+              attempt
+            );
+            attempt++;
+          }
+          break;
+      }
+
+      if (shouldStop) {
+        break;
       }
     }
 
-    // Update aggregate statistics based on final state of this prompt
-    if (finalVerdict === "full_success") {
-      fullSuccesses++;
-    } else if (finalVerdict === "partial_leak") {
-      partialLeaks++;
-    } else if (finalVerdict === "full_block") {
-      fullBlocks++;
-    } else {
-      offTopic++;
-    }
+    const lastAttempt = promptAttempts[promptAttempts.length - 1];
+    const finalClassification = lastAttempt?.classification ?? "full_block";
 
     // Emit prompt complete event
     await onEvent({
       type: "prompt_complete",
       seedId: seed.id,
       category: seed.category,
-      finalClassification: finalVerdict,
+      finalClassification,
       totalAttempts: promptAttempts.length,
-      isVulnerable: finalVerdict === "full_success",
+      isVulnerable: finalClassification === "full_success",
     });
   }
 
@@ -180,7 +170,7 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
   const totalDurationMs = Date.now() - startTime;
 
   // Calculate efficiency savings compared to a static 5-attempt brute-force baseline
-  const maxPossibleCalls = seedsToRun.length * maxAttemptsPerPrompt * 2;
+  const maxPossibleCalls = SEED_PROMPTS.length * MAX_ATTEMPTS_PER_PROMPT * 2;
   const savedCalls = Math.max(0, maxPossibleCalls - totalLLMCalls);
   const savingsPct = Math.round((savedCalls / maxPossibleCalls) * 100);
 
@@ -189,7 +179,7 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
   // Emit final summary event
   await onEvent({
     type: "summary",
-    totalSeedPrompts: seedsToRun.length,
+    totalSeedPrompts: SEED_PROMPTS.length,
     totalLLMCalls,
     clientCalls,
     classifierCalls,
