@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { clientAgentRouter } from "./routes/clientAgent";
 import { testRunnerRouter } from "./routes/testRunner";
-import { hasValidApiKey } from "./config";
+import { config, hasValidApiKey } from "./config";
 
 const app = new Hono();
 
@@ -15,26 +15,43 @@ app.use("*", cors());
 app.route("/client-agent", clientAgentRouter);
 app.route("/api", testRunnerRouter);
 
-// Cached HTML content
-const htmlPath = `${import.meta.dir}/public/index.html`;
-let cachedHtml = "";
+// Static Assets Directory
+const publicDir = `${import.meta.dir}/public`;
 
-async function getHtml(): Promise<string> {
-  if (!cachedHtml) {
-    const file = Bun.file(htmlPath);
-    cachedHtml = await file.text();
+// Serve CSS files
+app.get("/css/:filename", async (c) => {
+  const filename = c.req.param("filename");
+  const file = Bun.file(`${publicDir}/css/${filename}`);
+  if (await file.exists()) {
+    return new Response(file, {
+      headers: { "Content-Type": "text/css; charset=UTF-8" },
+    });
   }
-  return cachedHtml;
-}
+  return c.text("CSS Not Found", 404);
+});
+
+// Serve JS modules
+app.get("/js/:filename", async (c) => {
+  const filename = c.req.param("filename");
+  const file = Bun.file(`${publicDir}/js/${filename}`);
+  if (await file.exists()) {
+    return new Response(file, {
+      headers: { "Content-Type": "application/javascript; charset=UTF-8" },
+    });
+  }
+  return c.text("JavaScript Not Found", 404);
+});
 
 // Serve Frontend Single-Page App at / and /index.html
 app.get("/", async (c) => {
-  const html = await getHtml();
+  const file = Bun.file(`${publicDir}/index.html`);
+  const html = await file.text();
   return c.html(html);
 });
 
 app.get("/index.html", async (c) => {
-  const html = await getHtml();
+  const file = Bun.file(`${publicDir}/index.html`);
+  const html = await file.text();
   return c.html(html);
 });
 
@@ -46,19 +63,19 @@ app.get("/health", (c) => {
     timestamp: new Date().toISOString(),
   });
 });
-const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+
 console.log(`
 🛡️  ======================================================
     dwaar.ai Adaptive Red-Teaming Demo Server
     Runtime: Bun (${Bun.version})
-    Port: ${PORT}
-    OpenRouter API Key: ${hasValidApiKey() ? "Configured ✓" : "Not Set (Simulation Mode active)"}
-    Target Endpoint: http://localhost:${PORT}/client-agent/chat
-    Dashboard UI:    http://localhost:${PORT}/
+    Port: ${config.PORT}
+    OpenRouter API Key: ${hasValidApiKey() ? "Configured ✓" : "Not Set"}
+    Target Endpoint: http://localhost:${config.PORT}/client-agent/chat
+    Dashboard UI:    http://localhost:${config.PORT}/
 ======================================================
 `);
 
 export default {
-  port: PORT,
+  port: config.PORT,
   fetch: app.fetch,
 };
