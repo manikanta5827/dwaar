@@ -114,7 +114,17 @@ export function startTestRun() {
   });
 
   state.eventSource.addEventListener("error", (e) => {
-    console.error("SSE Error:", e);
+    if (e.data) {
+      try {
+        const errorData = JSON.parse(e.data);
+        console.error("❌ Red-Teaming Server Error:", errorData.message);
+        alert(`Red-Teaming Engine Error: ${errorData.message}`);
+      } catch {
+        console.error("SSE Error with data:", e.data);
+      }
+    } else {
+      console.warn("SSE Connection closed or interrupted.");
+    }
     stopTestRun();
   });
 }

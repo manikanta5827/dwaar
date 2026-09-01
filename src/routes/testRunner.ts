@@ -50,6 +50,7 @@ testRunnerRouter.get("/status", (c) => {
  */
 testRunnerRouter.get("/run-test", async (c) => {
   if (!hasValidApiKey()) {
+    console.warn("⚠️  [/api/run-test] Attempted test run without OPENROUTER_API_KEY.");
     return c.json(
       {
         error: "Missing OPENROUTER_API_KEY",
@@ -58,6 +59,8 @@ testRunnerRouter.get("/run-test", async (c) => {
       400
     );
   }
+
+  console.log("🔌 [/api/run-test] Client connected to SSE stream.");
 
   return streamSSE(c, async (stream) => {
     try {
@@ -70,15 +73,20 @@ testRunnerRouter.get("/run-test", async (c) => {
           });
         },
       });
+      console.log("✅ [/api/run-test] Red-teaming loop completed successfully.");
     } catch (err) {
-      console.error("Error during red-teaming run SSE:", err);
-      await stream.writeSSE({
-        event: "error",
-        data: JSON.stringify({
-          type: "error",
-          message: err instanceof Error ? err.message : String(err),
-        }),
-      });
+      console.error("❌ [/api/run-test] Error during red-teaming run SSE:", err);
+      try {
+        await stream.writeSSE({
+          event: "error",
+          data: JSON.stringify({
+            type: "error",
+            message: err instanceof Error ? err.message : String(err),
+          }),
+        });
+      } catch (streamErr) {
+        console.error("❌ [/api/run-test] Failed to write SSE error event to stream:", streamErr);
+      }
     }
   });
 });

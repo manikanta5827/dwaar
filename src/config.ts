@@ -3,10 +3,10 @@ import { createOpenRouter, type OpenRouterSharedSettings } from "@openrouter/ai-
 export const config = {
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
   PORT: Number(process.env.PORT) || 3000,
-  DEFAULT_MODEL_ID: process.env.DEFAULT_MODEL_ID || "openai/gpt-4o-mini",
-  CLIENT_AGENT_MODEL_ID: process.env.CLIENT_AGENT_MODEL_ID || "openai/gpt-4o-mini",
-  CLASSIFIER_MODEL_ID: process.env.CLASSIFIER_MODEL_ID || "openai/gpt-4o-mini",
-  MUTATOR_MODEL_ID: process.env.MUTATOR_MODEL_ID || "openai/gpt-4o-mini",
+  DEFAULT_MODEL_ID: process.env.DEFAULT_MODEL_ID || "google/gemini-3.7-flash",
+  CLIENT_AGENT_MODEL_ID: process.env.CLIENT_AGENT_MODEL_ID || "google/gemini-3.7-flash",
+  CLASSIFIER_MODEL_ID: process.env.CLASSIFIER_MODEL_ID || "google/gemini-3.7-flash",
+  MUTATOR_MODEL_ID: process.env.MUTATOR_MODEL_ID || "google/gemini-3.7-flash",
 };
 
 export const hasValidApiKey = (): boolean => {

@@ -13,6 +13,9 @@ app.use("*", cors());
 // Mount API Routes
 app.route("/api", testRunnerRouter);
 
+// Favicon handler
+app.get("/favicon.ico", (c) => c.body(null, 204));
+
 // Static Assets Directory
 const publicDir = `${import.meta.dir}/public`;
 

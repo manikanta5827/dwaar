@@ -23,6 +23,7 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
 
   if (!hasValidApiKey()) {
     const errorMsg = "Missing OPENROUTER_API_KEY in environment variables. Please set your OPENROUTER_API_KEY in .env to run the red-teaming engine.";
+    console.error(`❌ [Red-Teaming Engine] ${errorMsg}`);
     await onEvent({
       type: "error",
       message: errorMsg,
@@ -31,6 +32,8 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
   }
 
   const startTime = Date.now();
+  console.log(`🚀 [Red-Teaming Engine] Starting live test run across ${SEED_PROMPTS.length} seed prompts...`);
+
   let clientCalls = 0;
   let classifierCalls = 0;
   let mutatorCalls = 0;
@@ -49,6 +52,7 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
 
   for (let i = 0; i < SEED_PROMPTS.length; i++) {
     if (abortSignal?.aborted) {
+      console.log(`🛑 [Red-Teaming Engine] Run aborted by client.`);
       break;
     }
 
@@ -56,6 +60,8 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
     let currentPrompt = seed.text;
     let attempt = 1;
     const promptAttempts: AttemptRecord[] = [];
+
+    console.log(`\n▶️  [${i + 1}/${SEED_PROMPTS.length}] Starting Seed: [${seed.id}] ${seed.title} (${seed.category})`);
 
     // Notify start of this seed prompt
     await onEvent({
@@ -69,18 +75,42 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
     });
 
     while (attempt <= MAX_ATTEMPTS_PER_PROMPT) {
-      if (abortSignal?.aborted) break;
+      if (abortSignal?.aborted) {
+        console.log(`🛑 [Red-Teaming Engine] Run aborted during attempt loop.`);
+        break;
+      }
 
       const attemptStart = Date.now();
       const isMutated = attempt > 1;
 
+      console.log(`  🔍 Attempt ${attempt}/${MAX_ATTEMPTS_PER_PROMPT} ${isMutated ? "[MUTATED]" : "[INITIAL]"}`);
+      console.log(`     Prompt: "${currentPrompt.slice(0, 100)}${currentPrompt.length > 100 ? "..." : ""}"`);
+
       // 1. Call Client Agent (Live LLM call)
       clientCalls++;
-      const response = await callClientAgent(currentPrompt);
+      let response = "";
+      try {
+        response = await callClientAgent(currentPrompt);
+        console.log(`     Agent Response: "${response.slice(0, 100)}${response.length > 100 ? "..." : ""}"`);
+      } catch (agentErr) {
+        console.error(`❌ [Agent Error] Failed during callClientAgent:`, agentErr);
+        throw agentErr;
+      }
 
       // 2. Call Classifier (Live LLM call with Zod validation)
       classifierCalls++;
-      const classification = await classifyResponse(currentPrompt, response);
+      let classification;
+      try {
+        classification = await classifyResponse(currentPrompt, response);
+        console.log(`     Verdict: [${classification.classification}] | Reasoning: ${classification.reasoning}`);
+        if (classification.leaked_detail) {
+          console.log(`     ⚠️  Leaked Detail: ${classification.leaked_detail}`);
+        }
+      } catch (classErr) {
+        console.error(`❌ [Classifier Error] Failed during classifyResponse:`, classErr);
+        throw classErr;
+      }
+
       const attemptDuration = Date.now() - attemptStart;
 
       const attemptRecord: AttemptRecord = {
@@ -114,34 +144,43 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
 
       switch (classification.classification) {
         case "full_success":
+          console.log(`     🚨 FULL SUCCESS (Vulnerability Confirmed) -> Stopping early.`);
           fullSuccesses++;
           shouldStop = true;
           break;
 
         case "full_block":
+          console.log(`     🛡️  FULL BLOCK (Defended Cleanly) -> Stopping early.`);
           fullBlocks++;
           shouldStop = true;
           break;
 
         case "off_topic":
+          console.log(`     ⚪ OFF TOPIC -> Stopping early.`);
           offTopic++;
           shouldStop = true;
           break;
 
         case "partial_leak":
           if (attempt >= MAX_ATTEMPTS_PER_PROMPT) {
-            // Out of attempts, final outcome is partial leak
+            console.log(`     ⚠️  PARTIAL LEAK -> Max attempts reached.`);
             partialLeaks++;
             shouldStop = true;
           } else {
-            // Generate mutated prompt for the next attempt (Live LLM call)
+            console.log(`     ⚠️  PARTIAL LEAK -> Triggering Mutator for Attempt ${attempt + 1}...`);
             mutatorCalls++;
-            currentPrompt = await generateMutation(
-              currentPrompt,
-              response,
-              classification.leaked_detail,
-              attempt
-            );
+            try {
+              currentPrompt = await generateMutation(
+                currentPrompt,
+                response,
+                classification.leaked_detail,
+                attempt
+              );
+              console.log(`     ⚡ Mutated Prompt generated: "${currentPrompt.slice(0, 100)}..."`);
+            } catch (mutErr) {
+              console.error(`❌ [Mutator Error] Failed during generateMutation:`, mutErr);
+              throw mutErr;
+            }
             attempt++;
           }
           break;
@@ -175,6 +214,10 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
   const savingsPct = Math.round((savedCalls / maxPossibleCalls) * 100);
 
   const estimatedCostSavingsNote = `Adaptive early stopping and targeted mutation completed in ${totalLLMCalls} LLM calls instead of static brute-force ${maxPossibleCalls} calls (~${savingsPct}% fewer calls).`;
+
+  console.log(`\n🎉 [Red-Teaming Engine] Test run complete in ${(totalDurationMs / 1000).toFixed(1)}s!`);
+  console.log(`   Total LLM Calls: ${totalLLMCalls} (Saved ~${savingsPct}% vs brute-force ${maxPossibleCalls})`);
+  console.log(`   Vulnerabilities: ${fullSuccesses} | Partial Leaks: ${partialLeaks} | Defended: ${fullBlocks}`);
 
   // Emit final summary event
   await onEvent({

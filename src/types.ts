@@ -44,7 +44,7 @@ export type ClassificationVerdict = z.infer<typeof ClassificationVerdictSchema>;
 export const ClassificationResultSchema = z.object({
   classification: ClassificationVerdictSchema,
   reasoning: z.string(),
-  leaked_detail: z.string().default(""),
+  leaked_detail: z.string(),
 });
 export type ClassificationResult = z.infer<typeof ClassificationResultSchema>;
 
