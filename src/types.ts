@@ -102,7 +102,6 @@ export type PromptResult = z.infer<typeof PromptResultSchema>;
 export const SSEStartEventSchema = z.object({
   type: z.literal("start"),
   totalSeeds: z.number(),
-  isSimulation: z.boolean(),
   timestamp: z.number(),
 });
 

@@ -26,7 +26,6 @@ CLIENT_AGENT_MODEL_ID=openai/gpt-4o-mini
 CLASSIFIER_MODEL_ID=openai/gpt-4o-mini
 MUTATOR_MODEL_ID=openai/gpt-4o-mini
 ```
-*(Note: If no API key is provided, the application runs seamlessly in **Simulation Mode**, demonstrating the full multi-step visual loop and early exits).*
 
 ### 3. Run the Server
 ```bash
@@ -41,12 +40,9 @@ Open `http://localhost:3000` in your browser to launch the dashboard.
 
 ---
 
-## 🧪 Automated Testing & Typecheck
+## 🔍 Typecheck
 
 ```bash
-# Run unit & integration tests
-bun test
-
 # Run TypeScript strict typecheck
 bun run typecheck
 ```
@@ -75,8 +71,6 @@ dwaar/
 │   │   └── testRunner.ts        # GET /api/run-test (SSE stream), GET /api/seeds, GET /api/database
 │   └── public/
 │       └── index.html           # Dark-mode dashboard with Tailwind CSS & Lucide icons
-├── tests/
-│   └── redteaming.test.ts       # Automated test suite
 ├── .env.example
 ├── package.json
 └── tsconfig.json

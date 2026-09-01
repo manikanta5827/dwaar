@@ -51,13 +51,6 @@
     ::-webkit-scrollbar-thumb:hover {
       background: #334155;
     }
-    @keyframes pulseGlow {
-      0%, 100% { opacity: 0.4; }
-      50% { opacity: 0.9; }
-    }
-    .pulse-glow {
-      animation: pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
   </style>
 </head>
 <body class="bg-[#080b11] text-slate-100 min-h-screen antialiased selection:bg-indigo-500 selection:text-white pb-20">
@@ -75,7 +68,7 @@
           <div>
             <div class="flex items-center gap-2">
               <span class="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">dwaar.ai</span>
-              <span class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">concept demo</span>
+              <span class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">red-teaming</span>
             </div>
             <p class="text-xs text-slate-400">Adaptive Prompt-Injection Red-Teaming Engine</p>
           </div>
@@ -89,16 +82,6 @@
 
       <!-- Action Controls -->
       <div class="flex items-center gap-2.5 w-full md:w-auto justify-end">
-        <!-- Mode Toggle -->
-        <div class="flex items-center bg-slate-900/90 border border-slate-800 rounded-lg p-0.5 text-xs">
-          <button id="modeLiveBtn" onclick="setRunMode('live')" class="px-2.5 py-1 rounded-md transition-all text-slate-400 hover:text-slate-200">
-            Live LLM
-          </button>
-          <button id="modeSimBtn" onclick="setRunMode('sim')" class="px-2.5 py-1 rounded-md transition-all bg-indigo-600 text-white font-medium shadow-sm">
-            Simulation
-          </button>
-        </div>
-
         <!-- Database Inspector Button -->
         <button onclick="toggleDbModal(true)" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-medium text-slate-300 transition-colors">
           <i data-lucide="database" class="w-3.5 h-3.5 text-slate-400"></i>
@@ -122,6 +105,15 @@
   </header>
 
   <main class="max-w-7xl mx-auto px-4 md:px-6 pt-6 space-y-6">
+
+    <!-- MISSING API KEY WARNING BANNER (Hidden if key is present) -->
+    <div id="missingKeyBanner" class="hidden bg-rose-950/40 border border-rose-500/30 rounded-xl p-4 text-xs text-rose-200 flex items-start gap-3">
+      <i data-lucide="alert-octagon" class="w-5 h-5 text-rose-400 shrink-0 mt-0.5"></i>
+      <div class="space-y-1">
+        <span class="font-semibold text-rose-300 block text-sm">OPENROUTER_API_KEY Not Found</span>
+        <p class="text-rose-200/80">Please add your <code class="bg-rose-900/60 px-1 py-0.5 rounded text-rose-300">OPENROUTER_API_KEY</code> to the <code class="bg-rose-900/60 px-1 py-0.5 rounded text-rose-300">.env</code> file in the project root to run live LLM tests.</p>
+      </div>
+    </div>
 
     <!-- KPI STATS SUMMARY BANNER -->
     <section class="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -221,7 +213,7 @@
     <section class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
       <!-- Category Tabs -->
       <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto">
-        <button onclick="filterCategory('all')" id="tabCatAll" class="cat-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-white transition-colors">
+        <button onclick="filterCategory('all')" id="tabCatAll" class="cat-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition-colors">
           All (20)
         </button>
         <button onclick="filterCategory('prompt_leak')" id="tabCatPL" class="cat-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800 transition-colors">
@@ -293,7 +285,6 @@
     let dbData = [];
     let currentCategoryFilter = 'all';
     let currentSearchTerm = '';
-    let runMode = 'sim'; // 'live' or 'sim'
     let eventSource = null;
     let isRunning = false;
 
@@ -339,9 +330,15 @@
       try {
         const res = await fetch('/api/status');
         const data = await res.json();
+        const banner = document.getElementById('missingKeyBanner');
         if (!data.hasApiKey) {
-          setRunMode('sim');
-          document.getElementById('modeLiveBtn').title = 'OPENROUTER_API_KEY is not set in .env (running simulation mode)';
+          banner.classList.remove('hidden');
+          document.getElementById('statusText').innerText = 'API Key Missing';
+          document.getElementById('statusDot').className = 'w-2 h-2 rounded-full bg-rose-500';
+        } else {
+          banner.classList.add('hidden');
+          document.getElementById('statusText').innerText = 'Ready (Live LLM)';
+          document.getElementById('statusDot').className = 'w-2 h-2 rounded-full bg-emerald-500';
         }
       } catch (e) {
         console.warn('Status check failed', e);
@@ -367,19 +364,6 @@
         renderDbRecords();
       } catch (err) {
         console.error('Failed to fetch db records:', err);
-      }
-    }
-
-    function setRunMode(mode) {
-      runMode = mode;
-      const liveBtn = document.getElementById('modeLiveBtn');
-      const simBtn = document.getElementById('modeSimBtn');
-      if (mode === 'live') {
-        liveBtn.className = 'px-2.5 py-1 rounded-md transition-all bg-indigo-600 text-white font-medium shadow-sm';
-        simBtn.className = 'px-2.5 py-1 rounded-md transition-all text-slate-400 hover:text-slate-200';
-      } else {
-        simBtn.className = 'px-2.5 py-1 rounded-md transition-all bg-indigo-600 text-white font-medium shadow-sm';
-        liveBtn.className = 'px-2.5 py-1 rounded-md transition-all text-slate-400 hover:text-slate-200';
       }
     }
 
@@ -591,13 +575,12 @@
       document.getElementById('runTestBtn').classList.add('hidden');
       document.getElementById('stopTestBtn').classList.remove('hidden');
       document.getElementById('statusDot').className = 'w-2 h-2 rounded-full bg-indigo-400 animate-ping';
-      document.getElementById('statusText').innerText = runMode === 'live' ? 'Running Live LLM Test...' : 'Running Simulated Test...';
+      document.getElementById('statusText').innerText = 'Running Live LLM Red-Teaming...';
       document.getElementById('efficiencyBanner').classList.add('hidden');
 
       renderCards();
 
-      const url = `/api/run-test?simulate=${runMode === 'sim' ? 'true' : 'false'}`;
-      eventSource = new EventSource(url);
+      eventSource = new EventSource('/api/run-test');
 
       eventSource.addEventListener('start', (e) => {
         const data = JSON.parse(e.data);
@@ -611,7 +594,6 @@
         runState.set(seedId, { ...current, status: 'running' });
         renderCards();
 
-        // Scroll into view if needed
         const card = document.getElementById(`card-${seedId}`);
         if (card) {
           card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -627,7 +609,6 @@
         current.status = 'running';
         runState.set(seedId, current);
 
-        // Update calls count
         stats.totalCalls += (data.isMutated ? 3 : 2);
         stats.clientCalls += 1;
         stats.classifierCalls += 1;
@@ -661,7 +642,6 @@
         const data = JSON.parse(e.data);
         console.log('SSE Summary:', data);
         
-        // Sync final verified stats from server
         stats.totalCalls = data.totalLLMCalls;
         stats.clientCalls = data.clientCalls;
         stats.classifierCalls = data.classifierCalls;
@@ -672,7 +652,6 @@
         stats.offTopic = data.offTopic;
         updateStatsUI();
 
-        // Show efficiency callout banner
         const banner = document.getElementById('efficiencyBanner');
         banner.classList.remove('hidden');
         document.getElementById('efficiencyNote').innerText = data.estimatedCostSavingsNote;
@@ -696,7 +675,7 @@
       document.getElementById('runTestBtn').classList.remove('hidden');
       document.getElementById('stopTestBtn').classList.add('hidden');
       document.getElementById('statusDot').className = 'w-2 h-2 rounded-full bg-emerald-400';
-      document.getElementById('statusText').innerText = 'Completed';
+      document.getElementById('statusText').innerText = 'Ready (Live LLM)';
     }
 
     function updateStatsUI() {

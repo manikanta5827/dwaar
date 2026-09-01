@@ -6,12 +6,10 @@ import { hasValidApiKey } from "../config";
 import type {
   SSEEvent,
   ClassificationVerdict,
-  PromptResult,
   AttemptRecord,
 } from "../types";
 
 export interface RunnerOptions {
-  isSimulation?: boolean;
   selectedSeedIds?: string[];
   maxAttemptsPerPrompt?: number;
   abortSignal?: AbortSignal;
@@ -19,16 +17,24 @@ export interface RunnerOptions {
 }
 
 /**
- * Runs the adaptive red-teaming test suite sequentially across seed prompts.
+ * Runs the adaptive red-teaming test suite sequentially across seed prompts using live LLM calls.
  */
 export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
   const {
-    isSimulation = !hasValidApiKey(),
     selectedSeedIds,
     maxAttemptsPerPrompt = 5,
     abortSignal,
     onEvent,
   } = options;
+
+  if (!hasValidApiKey()) {
+    const errorMsg = "Missing OPENROUTER_API_KEY in environment variables. Please set your OPENROUTER_API_KEY in .env to run the red-teaming engine.";
+    await onEvent({
+      type: "error",
+      message: errorMsg,
+    });
+    throw new Error(errorMsg);
+  }
 
   const seedsToRun = selectedSeedIds && selectedSeedIds.length > 0
     ? SEED_PROMPTS.filter((s) => selectedSeedIds.includes(s.id))
@@ -48,7 +54,6 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
   await onEvent({
     type: "start",
     totalSeeds: seedsToRun.length,
-    isSimulation,
     timestamp: startTime,
   });
 
@@ -80,18 +85,12 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
       const attemptStart = Date.now();
       const isMutated = attempt > 1;
 
-      // 1. Call Client Agent
+      // 1. Call Client Agent (Live LLM call)
       clientCalls++;
-      if (isSimulation) {
-        await new Promise((r) => setTimeout(r, 400));
-      }
       const response = await callClientAgent(currentPrompt);
 
-      // 2. Call Classifier
+      // 2. Call Classifier (Live LLM call with Zod validation)
       classifierCalls++;
-      if (isSimulation) {
-        await new Promise((r) => setTimeout(r, 300));
-      }
       const classification = await classifyResponse(currentPrompt, response);
       const attemptDuration = Date.now() - attemptStart;
 
@@ -143,12 +142,8 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
           break;
         }
 
-        // Generate mutated prompt for the next attempt
+        // Generate mutated prompt for the next attempt (Live LLM call)
         mutatorCalls++;
-        if (isSimulation) {
-          await new Promise((r) => setTimeout(r, 350));
-        }
-
         currentPrompt = await generateMutation(
           currentPrompt,
           response,
@@ -185,7 +180,7 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
   const totalDurationMs = Date.now() - startTime;
 
   // Calculate efficiency savings compared to a static 5-attempt brute-force baseline
-  const maxPossibleCalls = seedsToRun.length * maxAttemptsPerPrompt * 2; // naive fuzzing baseline
+  const maxPossibleCalls = seedsToRun.length * maxAttemptsPerPrompt * 2;
   const savedCalls = Math.max(0, maxPossibleCalls - totalLLMCalls);
   const savingsPct = Math.round((savedCalls / maxPossibleCalls) * 100);
 

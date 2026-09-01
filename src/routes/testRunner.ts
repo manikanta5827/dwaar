@@ -46,17 +46,25 @@ testRunnerRouter.get("/status", (c) => {
 
 /**
  * GET /api/run-test
- * Server-Sent Events (SSE) stream endpoint to run the test suite and push live updates.
+ * Server-Sent Events (SSE) stream endpoint to run the live test suite.
  */
 testRunnerRouter.get("/run-test", async (c) => {
+  if (!hasValidApiKey()) {
+    return c.json(
+      {
+        error: "Missing OPENROUTER_API_KEY",
+        message: "Please set OPENROUTER_API_KEY in your .env file to run the red-teaming engine.",
+      },
+      400
+    );
+  }
+
   const query = c.req.query();
-  const simulate = query.simulate === "true" || !hasValidApiKey();
   const seedIds = query.seeds ? query.seeds.split(",").map((s) => s.trim()) : undefined;
 
   return streamSSE(c, async (stream) => {
     try {
       await runAdaptiveRedTeamingLoop({
-        isSimulation: simulate,
         selectedSeedIds: seedIds,
         abortSignal: c.req.raw.signal,
         onEvent: async (event: SSEEvent) => {
