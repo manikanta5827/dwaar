@@ -1,9 +1,11 @@
 // ============================================================
-// STATE
+// STATE (Feature A & Feature C)
 // ============================================================
 const state = {
-  seeds: {}, // seedId -> { id, category, title, seedText, attempts: [], status }
+  seeds: {}, // seedId -> { id, category, title, seedText, requiredToolCategories: [], attempts: [], status }
   order: [], // seed ids in display order
+  agentTools: [], // Target agent declared tools
+  detectedCategories: new Set(["system_prompt", "database"]), // Automatically detected categories
   activeCategory: "all",
   searchTerm: "",
   isRunning: false,
@@ -25,6 +27,7 @@ const STATUS_LABEL = {
   full_block: "Blocked",
   off_topic: "Off-topic",
   pending: "Queued",
+  pruned: "Skipped (No Tool)",
 };
 
 const STATUS_CLASS = {
@@ -33,6 +36,7 @@ const STATUS_CLASS = {
   full_block: "blocked",
   off_topic: "off_topic",
   pending: "pending",
+  pruned: "pruned",
 };
 
 // ============================================================
@@ -42,7 +46,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (window.lucide) {
     window.lucide.createIcons();
   }
-  await Promise.all([checkApiKeyStatus(), loadSeedPrompts(), loadDatabasePreview()]);
+  await Promise.all([
+    checkApiKeyStatus(),
+    loadAgentTools(),
+    loadSeedPrompts(),
+    loadDatabasePreview(),
+  ]);
+  renderAgentToolsInspection();
   renderAll();
 });
 
@@ -59,6 +69,19 @@ async function checkApiKeyStatus() {
   }
 }
 
+async function loadAgentTools() {
+  try {
+    const res = await fetch("/api/agent-tools");
+    const data = await res.json();
+    state.agentTools = data.tools || [];
+    if (data.detectedCategories) {
+      state.detectedCategories = new Set(data.detectedCategories);
+    }
+  } catch (err) {
+    console.error("Failed to load agent tools", err);
+  }
+}
+
 async function loadSeedPrompts() {
   try {
     const res = await fetch("/api/seeds");
@@ -72,6 +95,7 @@ async function loadSeedPrompts() {
         category: p.category,
         title: p.title || p.id,
         seedText: p.text,
+        requiredToolCategories: p.requiredToolCategories || ["system_prompt"],
         attempts: [],
         status: "pending",
       };
@@ -115,12 +139,85 @@ async function loadDatabasePreview() {
 }
 
 // ============================================================
+// FEATURE C: PERMISSIVE TOOL & CATEGORY MATCHING (ANY)
+// ============================================================
+function isSeedMatched(seed) {
+  // Permissive (ANY): Included if agent has ANY of the required tool categories
+  return seed.requiredToolCategories.some((cat) =>
+    state.detectedCategories.has(cat)
+  );
+}
+
+function getMatchedSeeds() {
+  return state.order.filter((id) => isSeedMatched(state.seeds[id]));
+}
+
+function renderAgentToolsInspection() {
+  const container = document.getElementById("capToolsListContainer");
+  if (!container) return;
+
+  const toolChips = state.agentTools.map(
+    (t) => `
+    <div class="tool-chip" title="${escapeHtml(t.description)}">
+      <i data-lucide="database" class="icon-sm tool-chip-icon"></i>
+      <span><strong>${escapeHtml(t.name)}</strong></span>
+      <span class="tag">Database Query Tool</span>
+    </div>
+  `
+  );
+
+  // Always add Base LLM System Prompt Persona capability
+  toolChips.unshift(`
+    <div class="tool-chip" title="Base LLM guardrail instructions and personality constraints">
+      <i data-lucide="shield" class="icon-sm tool-chip-icon"></i>
+      <span><strong>system_prompt</strong></span>
+      <span class="tag">LLM Persona &amp; Constraints</span>
+    </div>
+  `);
+
+  container.innerHTML = toolChips.join("");
+
+  if (window.lucide) {
+    window.lucide.createIcons();
+  }
+
+  updateCapabilityStats();
+}
+
+function updateCapabilityStats() {
+  const total = state.order.length || 26;
+  const matched = getMatchedSeeds().length;
+  const pruned = total - matched;
+  const savingsPct = Math.round((pruned / total) * 100);
+
+  const matchedEl = document.getElementById("statMatchedCount");
+  const totalEl = document.getElementById("statTotalLibCount");
+  const savingsEl = document.getElementById("statPrunedSavings");
+  const runBtnText = document.getElementById("runBtnText");
+
+  if (matchedEl) matchedEl.textContent = String(matched);
+  if (totalEl) totalEl.textContent = String(total);
+  if (savingsEl) {
+    savingsEl.textContent = `${pruned} unmatched prompts skipped (saves ~${savingsPct}% token cost)`;
+  }
+  if (runBtnText) {
+    runBtnText.textContent = `Run ${matched} matched prompts`;
+  }
+}
+
+// ============================================================
 // RUN CONTROL (SSE)
 // ============================================================
 let eventSource = null;
 
 function startTestRun() {
   if (state.isRunning) return;
+  const matched = getMatchedSeeds();
+  if (matched.length === 0) {
+    alert("No attack vectors match your currently detected target tools.");
+    return;
+  }
+
   state.isRunning = true;
   state.startTime = Date.now();
   state.totals = {
@@ -132,9 +229,10 @@ function startTestRun() {
     partials: 0,
     blocks: 0,
   };
+
   state.order.forEach((id) => {
     state.seeds[id].attempts = [];
-    state.seeds[id].status = "pending";
+    state.seeds[id].status = isSeedMatched(state.seeds[id]) ? "pending" : "pruned";
   });
 
   setRunningUI(true);
@@ -144,7 +242,7 @@ function startTestRun() {
 
   eventSource.addEventListener("start", (e) => {
     const data = JSON.parse(e.data);
-    console.log("SSE Start:", data);
+    console.log("SSE Start (Automatic Tool Matching):", data);
   });
 
   eventSource.addEventListener("prompt_start", (e) => {
@@ -253,7 +351,7 @@ function handleStep(step) {
 }
 
 function handleSummary(summary) {
-  state.totals.seedsTested = summary.totalSeedPrompts;
+  state.totals.seedsTested = summary.matchedSeeds || summary.totalSeedPrompts;
   state.totals.leaks = summary.fullSuccesses;
   state.totals.partials = summary.partialLeaks;
   state.totals.blocks = summary.fullBlocks;
@@ -287,9 +385,10 @@ function showEfficiencyBanner(summary) {
 // ============================================================
 function renderSummary() {
   const finished = countFinishedSeeds();
-  const total = state.order.length || 20;
+  const matchedTotal = getMatchedSeeds().length || 1;
 
   const statSeedsTested = document.getElementById("statSeedsTested");
+  const statSeedsTotalUnit = document.getElementById("statSeedsTotalUnit");
   const statProgressBar = document.getElementById("statProgressBar");
   const statTotalCalls = document.getElementById("statTotalCalls");
   const statCallBreakdown = document.getElementById("statCallBreakdown");
@@ -298,7 +397,8 @@ function renderSummary() {
   const statFullBlocks = document.getElementById("statFullBlocks");
 
   if (statSeedsTested) statSeedsTested.textContent = String(finished);
-  if (statProgressBar) statProgressBar.style.width = `${(finished / total) * 100}%`;
+  if (statSeedsTotalUnit) statSeedsTotalUnit.textContent = `/${matchedTotal}`;
+  if (statProgressBar) statProgressBar.style.width = `${(finished / matchedTotal) * 100}%`;
 
   const totalCalls =
     state.totals.clientCalls +
@@ -349,7 +449,9 @@ function renderAll() {
     window.lucide.createIcons();
   }
   applyFilters();
+  updateCategoryCounts();
   renderSummary();
+  updateCapabilityStats();
 }
 
 function renderCase(id) {
@@ -377,21 +479,30 @@ function renderCase(id) {
 
 function buildCaseElement(seed) {
   const el = document.createElement("article");
-  el.className = "case";
+  const isMatched = isSeedMatched(seed);
+  el.className = `case ${!isMatched ? "is-pruned" : ""}`;
   el.id = `case-${seed.id}`;
   el.dataset.category = seed.category;
 
-  const status = seed.status || "pending";
+  const status = !isMatched ? "pruned" : seed.status || "pending";
   const statusClass = STATUS_CLASS[status] || "pending";
   const statusLabel = STATUS_LABEL[status] || "Queued";
 
   const chainDots = Array.from({ length: 5 })
     .map((_, i) => {
+      if (!isMatched) return `<span class="chain-dot pruned" title="Skipped: Tool Mismatch"></span>`;
       const a = seed.attempts[i];
       if (!a) return `<span class="chain-dot pending"></span>`;
       return `<span class="chain-dot ${STATUS_CLASS[a.classification] || "pending"}"></span>`;
     })
     .join("");
+
+  const reqCapsList = seed.requiredToolCategories
+    .map(
+      (c) =>
+        `<code style="font-size:0.68rem; padding:1px 5px; background:var(--surface-raised); border-radius:3px;">${c}</code>`
+    )
+    .join(" ");
 
   el.innerHTML = `
     <div class="case-head" onclick="toggleCase('${seed.id}')">
@@ -405,10 +516,22 @@ function buildCaseElement(seed) {
     </div>
     <div class="case-body">
       <div class="trail">
+        <div style="margin-bottom:0.75rem; font-size:0.72rem; color:var(--ink-faint);">
+          <strong>Required Tool Categories (Feature C):</strong> ${reqCapsList}
+          ${
+            !isMatched
+              ? `<div style="color:var(--partial); margin-top:0.25rem;">⏭️ <strong>Skipped:</strong> Target agent does not possess matching tool(s). Automatically pruned to eliminate unnecessary LLM calls.</div>`
+              : ""
+          }
+        </div>
         ${
           seed.attempts.length
             ? seed.attempts.map(buildAttemptHTML).join("")
-            : `<p style="color:var(--ink-faint); font-size:0.8rem; padding: 0.75rem 0;">Not yet run. Initial attack prompt: <code>${escapeHtml(seed.seedText)}</code></p>`
+            : `<p style="color:var(--ink-faint); font-size:0.8rem; padding: 0.5rem 0;">${
+                isMatched
+                  ? `Queued for run. Initial attack prompt: <code>${escapeHtml(seed.seedText)}</code>`
+                  : `Pruned before execution. Attack prompt: <code>${escapeHtml(seed.seedText)}</code>`
+              }</p>`
         }
       </div>
     </div>
@@ -456,6 +579,36 @@ function toggleCase(id) {
 // ============================================================
 // FILTERS / SEARCH
 // ============================================================
+function updateCategoryCounts() {
+  const counts = {
+    all: state.order.length,
+    prompt_leak: 0,
+    data_exfiltration: 0,
+    tool_misuse: 0,
+    email_hijack: 0,
+    payment_fraud: 0,
+    code_exec: 0,
+  };
+
+  state.order.forEach((id) => {
+    const cat = state.seeds[id].category;
+    if (counts[cat] !== undefined) counts[cat]++;
+  });
+
+  const setTxt = (elId, val) => {
+    const el = document.getElementById(elId);
+    if (el) el.textContent = String(val);
+  };
+
+  setTxt("catCountAll", counts.all);
+  setTxt("catCountPL", counts.prompt_leak);
+  setTxt("catCountDE", counts.data_exfiltration);
+  setTxt("catCountTM", counts.tool_misuse);
+  setTxt("catCountEH", counts.email_hijack);
+  setTxt("catCountPF", counts.payment_fraud);
+  setTxt("catCountCE", counts.code_exec);
+}
+
 function filterCategory(cat) {
   state.activeCategory = cat;
   document.querySelectorAll(".cat-tab").forEach((t) => {
@@ -505,6 +658,9 @@ function formatCategory(cat) {
       prompt_leak: "Prompt leak",
       data_exfiltration: "Data exfiltration",
       tool_misuse: "Tool misuse",
+      email_hijack: "Email hijack",
+      payment_fraud: "Payment fraud",
+      code_exec: "Code exec",
     }[cat] || cat
   );
 }
@@ -519,7 +675,7 @@ function escapeHtml(str) {
 }
 
 // ============================================================
-// WINDOW EXPORTS (for inline HTML onclick / oninput handlers)
+// WINDOW EXPORTS
 // ============================================================
 window.startTestRun = startTestRun;
 window.stopTestRun = stopTestRun;

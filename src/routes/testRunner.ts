@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { SEED_PROMPTS } from "../engine/seeds";
 import { FAKE_CUSTOMER_DATABASE } from "../clientAgent/database";
+import { getAgentToolManifest } from "../clientAgent/agent";
 import { runAdaptiveRedTeamingLoop } from "../engine/runner";
 import { config, hasValidApiKey } from "../config";
 import type { SSEEvent } from "../types";
@@ -9,8 +10,16 @@ import type { SSEEvent } from "../types";
 export const testRunnerRouter = new Hono();
 
 /**
+ * GET /api/agent-tools
+ * Returns the target agent's registered tools and automatically detected capability categories (Feature C).
+ */
+testRunnerRouter.get("/agent-tools", (c) => {
+  return c.json(getAgentToolManifest());
+});
+
+/**
  * GET /api/seeds
- * Returns the full library of 20 seed attack prompts.
+ * Returns the full library of seed attack prompts with their required tool categories.
  */
 testRunnerRouter.get("/seeds", (c) => {
   return c.json({
@@ -46,7 +55,7 @@ testRunnerRouter.get("/status", (c) => {
 
 /**
  * GET /api/run-test
- * Server-Sent Events (SSE) stream endpoint to run the red-teaming test suite.
+ * Server-Sent Events (SSE) stream endpoint running the capability-aware red-teaming loop.
  */
 testRunnerRouter.get("/run-test", async (c) => {
   if (!hasValidApiKey()) {

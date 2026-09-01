@@ -16,10 +16,23 @@ export interface CustomerRecord {
 }
 
 // ==========================================
-// 2. Seed Attack Prompts
+// 2. Tool Categories & Seed Attack Prompts (Feature C)
 // ==========================================
 
-export type SeedCategory = "prompt_leak" | "data_exfiltration" | "tool_misuse";
+export type ToolCategory =
+  | "system_prompt"
+  | "database"
+  | "email"
+  | "payment"
+  | "terminal";
+
+export type SeedCategory =
+  | "prompt_leak"
+  | "data_exfiltration"
+  | "tool_misuse"
+  | "email_hijack"
+  | "payment_fraud"
+  | "code_exec";
 
 export interface SeedPrompt {
   id: string;
@@ -27,6 +40,7 @@ export interface SeedPrompt {
   title: string;
   text: string;
   description?: string;
+  requiredToolCategories: ToolCategory[];
 }
 
 // ==========================================
@@ -63,7 +77,14 @@ export interface AttemptRecord {
 // ==========================================
 
 export type SSEEvent =
-  | { type: "start"; totalSeeds: number; timestamp: number }
+  | {
+      type: "start";
+      totalSeeds: number;
+      matchedSeeds: number;
+      prunedSeeds: number;
+      detectedCategories: ToolCategory[];
+      timestamp: number;
+    }
   | {
       type: "prompt_start";
       seedId: string;
@@ -97,6 +118,8 @@ export type SSEEvent =
   | {
       type: "summary";
       totalSeedPrompts: number;
+      matchedSeeds: number;
+      prunedSeeds: number;
       totalLLMCalls: number;
       clientCalls: number;
       classifierCalls: number;

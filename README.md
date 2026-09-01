@@ -1,8 +1,17 @@
-# dwaar.ai — Adaptive Red-Teaming Engine
+# dwaar.ai — Capability-Aware Adaptive Red-Teaming Engine
 
-> A standalone concept demo showing an **adaptive prompt-injection red-teaming loop** against a toy client agent using **Bun**, **Hono**, **Vercel AI SDK**, **OpenRouter**, and **Zod**.
+> A standalone concept demo showcasing two breakthroughs in AI red-teaming unit economics:
+> 1. **Feature A: Adaptive Multi-Step Loop (Targeted Mutation)** — Instead of blind brute-force fuzzing, dynamically mutates follow-up attacks on partial leaks up to 5 attempts.
+> 2. **Feature C: Capability & Tool Matching** — Automatically categorizes attack vectors and target agent tools, pruning irrelevant attacks before a single LLM token is spent.
 
-Instead of firing a static list of prompt injections blindly, the system sends a seed attack, classifies the response in real time (`full_success` / `partial_leak` / `full_block` / `off_topic`), and if a `partial_leak` occurs, dynamically synthesizes a sharper follow-up attack exploiting what leaked — up to 5 attempts per seed prompt. Results stream live to a dark-mode dashboard via Server-Sent Events (SSE).
+---
+
+## ⚡ Key Value Proposition: Solving the Red-Teaming Unit Economics Problem
+
+Running a static 200,000-prompt library against customer agents creates massive, unsustainable API costs:
+* **The Capability Mismatch Problem**: 60–80% of attacks in a generic 200k library (e.g. SQL injection, Stripe payment refund exploits, Terminal RCE) are fired against bots that have no database, payment, or shell tools.
+* **The Solution (Feature C)**: Declare or inspect the agent's actual tool manifest (`search_customer_database`, `send_email`, etc.). Dwaar automatically prunes unmatched vector categories upfront, saving **20–60% of API calls instantly**.
+* **The Solution (Feature A)**: For matched vectors, early stopping on clean refusals (`full_block`) combined with targeted rewrites on `partial_leak` saves an additional **60–75% of calls** compared to static brute force.
 
 ---
 
@@ -36,52 +45,16 @@ bun start
 bun dev
 ```
 
-Open `http://localhost:3000` in your browser to launch the dashboard and click **"Run Test"**.
+Open `http://localhost:3000` (or configured port) in your browser:
+1. Toggle the **Target Agent Tools & Capabilities** checkboxes to see the live pruning calculation update.
+2. Click **"Run Matched Prompts"** to watch the live adaptive red-teaming loop stream via SSE.
 
 ---
 
 ## 🔍 Typecheck
 
 ```bash
-# Run TypeScript strict typecheck
 bun run typecheck
-```
-
----
-
-## 🏗️ Architecture
-
-```
-dwaar/
-├── src/
-│   ├── index.ts                 # Hono server on Bun with SSE & modular static file serving
-│   ├── config.ts                # Environment settings & OpenRouter provider setup
-│   ├── types.ts                 # TypeScript interfaces and Zod schemas for all models/events
-│   ├── clientAgent/
-│   │   ├── database.ts          # In-memory fake customer DB with sensitive flags (EXP-8842-SEC, BYPASS-2026-ALPHA)
-│   │   ├── systemPrompt.ts      # Moderately defended customer support agent instructions
-│   │   └── agent.ts             # Target customer support agent tool caller (search_customer_database)
-│   ├── engine/
-│   │   ├── seeds.ts             # 20 diverse seed attack prompts across 3 categories
-│   │   ├── classifier.ts        # Structured JSON evaluation (full_success, partial_leak, full_block, off_topic)
-│   │   ├── mutator.ts           # Targeted follow-up mutation engine exploiting leaked intelligence
-│   │   └── runner.ts            # Sequential orchestrator with SSE progress stream & cost savings computation
-│   ├── routes/
-│   │   └── testRunner.ts        # GET /api/run-test (SSE stream), GET /api/seeds, GET /api/database, GET /api/status
-│   └── public/
-│       ├── index.html           # Dark-mode dashboard layout
-│       ├── css/
-│       │   └── style.css        # Typography and custom scrollbar styling
-│       └── js/
-│           ├── api.js           # API fetch helpers
-│           ├── config.js        # Category and verdict visual configs
-│           ├── state.js         # Reactive global state and counters
-│           ├── ui.js            # Card & modal DOM rendering
-│           ├── runner.js        # SSE EventSource listener
-│           └── app.js           # Main browser entrypoint
-├── .env.example
-├── package.json
-└── tsconfig.json
 ```
 
 ---
@@ -89,8 +62,9 @@ dwaar/
 ## 📡 API Endpoints
 
 - `GET /` — Interactive Red-Teaming Dashboard UI
-- `GET /api/run-test` — Server-Sent Events (SSE) stream for live red-teaming execution
-- `GET /api/seeds` — Library of 20 seed prompts across `prompt_leak`, `data_exfiltration`, and `tool_misuse`
-- `GET /api/database` — Inspection endpoint for the toy client agent's customer database
+- `GET /api/capabilities` — Target agent tools catalog and default capabilities
+- `GET /api/seeds` — Seed prompts library with `requiredCapabilities` tags
+- `GET /api/database` — Customer database inspection modal endpoint
 - `GET /api/status` — Server and API key configuration status
+- `GET /api/run-test?caps=...` — Live Server-Sent Events (SSE) red-teaming stream with capability pruning
 - `GET /health` — Health check

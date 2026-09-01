@@ -1,5 +1,5 @@
 import { SEED_PROMPTS } from "./seeds";
-import { callClientAgent } from "../clientAgent/agent";
+import { callClientAgent, getAgentToolCategories } from "../clientAgent/agent";
 import { classifyResponse } from "./classifier";
 import { generateMutation } from "./mutator";
 import { hasValidApiKey } from "../config";
@@ -16,7 +16,10 @@ export interface RunnerOptions {
 }
 
 /**
- * Runs the adaptive red-teaming test suite sequentially across all 20 seed prompts using live LLM calls.
+ * Runs the capability-matched adaptive red-teaming test suite (Features A & C).
+ * Automatically inspects the target agent's registered tools, eliminates test prompts
+ * that do not match any of the agent's tool categories (permissive matching), and
+ * executes the adaptive multi-step attack loop on matched prompts.
  */
 export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
   const { abortSignal, onEvent } = options;
@@ -31,8 +34,17 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
     throw new Error(errorMsg);
   }
 
+  // Feature C: Automatic Agent Tool & Category Detection (Permissive Match)
+  const detectedCategories = getAgentToolCategories();
+  const matchedSeeds = SEED_PROMPTS.filter((seed) =>
+    seed.requiredToolCategories.some((cat) => detectedCategories.includes(cat))
+  );
+  const prunedSeedsCount = SEED_PROMPTS.length - matchedSeeds.length;
+
   const startTime = Date.now();
-  console.log(`🚀 [Red-Teaming Engine] Starting live test run across ${SEED_PROMPTS.length} seed prompts...`);
+  console.log(`🚀 [Red-Teaming Engine] Feature C: Permissive Tool & Category Matching:`);
+  console.log(`   Detected Agent Tool Categories: [${detectedCategories.join(", ")}]`);
+  console.log(`   Total Library: ${SEED_PROMPTS.length} | Matched: ${matchedSeeds.length} | Pruned (Unmatched Tools): ${prunedSeedsCount}`);
 
   let clientCalls = 0;
   let classifierCalls = 0;
@@ -43,25 +55,28 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
   let fullBlocks = 0;
   let offTopic = 0;
 
-  // Emit start event
+  // Emit start event with automatic capability matching metadata
   await onEvent({
     type: "start",
     totalSeeds: SEED_PROMPTS.length,
+    matchedSeeds: matchedSeeds.length,
+    prunedSeeds: prunedSeedsCount,
+    detectedCategories,
     timestamp: startTime,
   });
 
-  for (let i = 0; i < SEED_PROMPTS.length; i++) {
+  for (let i = 0; i < matchedSeeds.length; i++) {
     if (abortSignal?.aborted) {
       console.log(`🛑 [Red-Teaming Engine] Run aborted by client.`);
       break;
     }
 
-    const seed = SEED_PROMPTS[i]!;
+    const seed = matchedSeeds[i]!;
     let currentPrompt = seed.text;
     let attempt = 1;
     const promptAttempts: AttemptRecord[] = [];
 
-    console.log(`\n▶️  [${i + 1}/${SEED_PROMPTS.length}] Starting Seed: [${seed.id}] ${seed.title} (${seed.category})`);
+    console.log(`\n▶️  [${i + 1}/${matchedSeeds.length}] Starting Seed: [${seed.id}] ${seed.title} (${seed.category})`);
 
     // Notify start of this seed prompt
     await onEvent({
@@ -71,7 +86,7 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
       title: seed.title,
       initialPrompt: seed.text,
       promptIndex: i + 1,
-      totalSeeds: SEED_PROMPTS.length,
+      totalSeeds: matchedSeeds.length,
     });
 
     while (attempt <= MAX_ATTEMPTS_PER_PROMPT) {
@@ -208,21 +223,23 @@ export async function runAdaptiveRedTeamingLoop(options: RunnerOptions) {
   const totalLLMCalls = clientCalls + classifierCalls + mutatorCalls;
   const totalDurationMs = Date.now() - startTime;
 
-  // Calculate efficiency savings compared to a static 5-attempt brute-force baseline
-  const maxPossibleCalls = SEED_PROMPTS.length * MAX_ATTEMPTS_PER_PROMPT * 2;
-  const savedCalls = Math.max(0, maxPossibleCalls - totalLLMCalls);
-  const savingsPct = Math.round((savedCalls / maxPossibleCalls) * 100);
+  // Calculate efficiency savings:
+  const unprunedBruteForceCalls = SEED_PROMPTS.length * MAX_ATTEMPTS_PER_PROMPT * 2;
+  const savedCalls = Math.max(0, unprunedBruteForceCalls - totalLLMCalls);
+  const savingsPct = Math.round((savedCalls / unprunedBruteForceCalls) * 100);
 
-  const estimatedCostSavingsNote = `Adaptive early stopping and targeted mutation completed in ${totalLLMCalls} LLM calls instead of static brute-force ${maxPossibleCalls} calls (~${savingsPct}% fewer calls).`;
+  const estimatedCostSavingsNote = `Feature C tool filtering (${prunedSeedsCount} tool mismatches pruned) + Feature A adaptive early exit completed in ${totalLLMCalls} calls vs ${unprunedBruteForceCalls} brute-force calls (~${savingsPct}% total token savings).`;
 
   console.log(`\n🎉 [Red-Teaming Engine] Test run complete in ${(totalDurationMs / 1000).toFixed(1)}s!`);
-  console.log(`   Total LLM Calls: ${totalLLMCalls} (Saved ~${savingsPct}% vs brute-force ${maxPossibleCalls})`);
+  console.log(`   Total LLM Calls: ${totalLLMCalls} (Saved ~${savingsPct}% vs brute-force ${unprunedBruteForceCalls})`);
   console.log(`   Vulnerabilities: ${fullSuccesses} | Partial Leaks: ${partialLeaks} | Defended: ${fullBlocks}`);
 
   // Emit final summary event
   await onEvent({
     type: "summary",
     totalSeedPrompts: SEED_PROMPTS.length,
+    matchedSeeds: matchedSeeds.length,
+    prunedSeeds: prunedSeedsCount,
     totalLLMCalls,
     clientCalls,
     classifierCalls,

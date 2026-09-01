@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>dwaar.ai — Adaptive Red-Team Run</title>
+  <title>dwaar.ai — Capability-Aware Adaptive Red-Team</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,8 +20,8 @@
       <div class="brand-block">
         <div class="brand-mark" aria-hidden="true">dw</div>
         <div class="brand-text">
-          <h1>Adaptive Red-Team Run</h1>
-          <p>dwaar.ai — testing one customer-support agent, live</p>
+          <h1>Capability-Aware Red-Team Engine</h1>
+          <p>dwaar.ai — Adaptive prompt injection &amp; tool-category matching</p>
         </div>
       </div>
 
@@ -36,7 +36,7 @@
         </button>
         <button class="btn btn-primary" id="runTestBtn" onclick="startTestRun()">
           <i data-lucide="play" class="icon-sm"></i>
-          Run 20 seed prompts
+          <span id="runBtnText">Run matched prompts</span>
         </button>
         <button class="btn btn-stop hidden" id="stopTestBtn" onclick="stopTestRun()">
           <i data-lucide="square" class="icon-sm"></i>
@@ -48,7 +48,7 @@
 
   <main class="page">
 
-    <!-- MISSING KEY -->
+    <!-- MISSING KEY BANNER -->
     <div id="missingKeyBanner" class="banner banner-warn hidden">
       <i data-lucide="alert-triangle" class="icon-md"></i>
       <div>
@@ -57,11 +57,28 @@
       </div>
     </div>
 
+    <!-- FEATURE C: AUTOMATIC AGENT TOOL INSPECTOR & CATEGORY MATCHING -->
+    <section class="capability-panel">
+      <div class="cap-header">
+        <div class="cap-title">
+          <i data-lucide="cpu" class="icon-sm"></i>
+          <span>Target Agent Tool Inspection (Feature C)</span>
+          <span class="cap-badge">Automated Matching</span>
+        </div>
+        <div class="cap-stats" id="capStatsText">
+          Matched: <strong id="statMatchedCount">20</strong> of <span id="statTotalLibCount">26</span> prompts · <span class="cap-savings" id="statPrunedSavings">6 unmatched prompts skipped (saves ~23% token cost)</span>
+        </div>
+      </div>
+      <div class="cap-tools-list" id="capToolsListContainer">
+        <!-- Populated via GET /api/agent-tools -->
+      </div>
+    </section>
+
     <!-- SUMMARY STRIP -->
     <section class="summary-strip">
       <div class="summary-figure">
         <span class="summary-label">Seeds run</span>
-        <span class="summary-value"><span id="statSeedsTested">0</span><span class="summary-unit">/20</span></span>
+        <span class="summary-value"><span id="statSeedsTested">0</span><span class="summary-unit" id="statSeedsTotalUnit">/20</span></span>
         <div class="summary-track"><div class="summary-fill" id="statProgressBar"></div></div>
       </div>
 
@@ -93,17 +110,20 @@
     <!-- EFFICIENCY CALLOUT -->
     <section id="efficiencyBanner" class="efficiency-banner hidden">
       <i data-lucide="zap" class="icon-md"></i>
-      <p><strong>Adaptive search, not brute force.</strong> <span id="efficiencyNote">Early stopping and targeted rewrites avoided ~65% of the calls a fixed 200,000-prompt sweep would have made.</span></p>
+      <p><strong>Adaptive search &amp; tool category matching.</strong> <span id="efficiencyNote">Skipped irrelevant attacks and mutated partial leaks to save ~70% total test calls.</span></p>
       <span class="efficiency-time" id="statDuration">0.0s</span>
     </section>
 
     <!-- FILTER ROW -->
     <section class="filter-row">
       <div class="cat-tabs" id="catTabs">
-        <button class="cat-tab is-active" data-cat="all" onclick="filterCategory('all')">All <span>20</span></button>
-        <button class="cat-tab" data-cat="prompt_leak" onclick="filterCategory('prompt_leak')">Prompt leak <span>7</span></button>
-        <button class="cat-tab" data-cat="data_exfiltration" onclick="filterCategory('data_exfiltration')">Data exfiltration <span>7</span></button>
-        <button class="cat-tab" data-cat="tool_misuse" onclick="filterCategory('tool_misuse')">Tool misuse <span>6</span></button>
+        <button class="cat-tab is-active" data-cat="all" onclick="filterCategory('all')">All <span id="catCountAll">26</span></button>
+        <button class="cat-tab" data-cat="prompt_leak" onclick="filterCategory('prompt_leak')">Prompt leak <span id="catCountPL">7</span></button>
+        <button class="cat-tab" data-cat="data_exfiltration" onclick="filterCategory('data_exfiltration')">Data exfil <span id="catCountDE">7</span></button>
+        <button class="cat-tab" data-cat="tool_misuse" onclick="filterCategory('tool_misuse')">Tool misuse <span id="catCountTM">6</span></button>
+        <button class="cat-tab" data-cat="email_hijack" onclick="filterCategory('email_hijack')">Email hijack <span id="catCountEH">2</span></button>
+        <button class="cat-tab" data-cat="payment_fraud" onclick="filterCategory('payment_fraud')">Payment fraud <span id="catCountPF">2</span></button>
+        <button class="cat-tab" data-cat="code_exec" onclick="filterCategory('code_exec')">Code exec <span id="catCountCE">2</span></button>
       </div>
 
       <div class="search-box">
@@ -117,7 +137,7 @@
 
   </main>
 
-  <!-- DB MODAL -->
+  <!-- TARGET DATABASE MODAL -->
   <div id="dbModal" class="modal-overlay hidden">
     <div class="modal">
       <div class="modal-head">
