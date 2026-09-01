@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dwaar.ai | Adaptive Red-Teaming Engine</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    code, pre, .font-mono {
+      font-family: 'Geist Mono', monospace;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.4; }
+      50% { opacity: 0.9; }
+    }
+    .pulse-glow {
+      animation: pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+<body class="bg-[#080b11] text-slate-100 min-h-screen antialiased selection:bg-indigo-500 selection:text-white pb-20">
+
+  <!-- TOP HEADER -->
+  <header class="sticky top-0 z-40 backdrop-blur-md bg-[#080b11]/90 border-b border-slate-800/80 px-6 py-3.5 transition-all">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      
+      <!-- Brand & Title -->
+      <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+        <div class="flex items-center gap-2.5">
+          <div class="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-indigo-500/20 ring-1 ring-white/20">
+            <i data-lucide="shield-alert" class="w-5 h-5 text-white"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">dwaar.ai</span>
+              <span class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">concept demo</span>
+            </div>
+            <p class="text-xs text-slate-400">Adaptive Prompt-Injection Red-Teaming Engine</p>
+          </div>
+        </div>
+
+        <div id="connectionStatusPill" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs bg-slate-900 border border-slate-800 text-slate-400">
+          <span class="w-2 h-2 rounded-full bg-slate-500" id="statusDot"></span>
+          <span id="statusText">Ready</span>
+        </div>
+      </div>
+
+      <!-- Action Controls -->
+      <div class="flex items-center gap-2.5 w-full md:w-auto justify-end">
+        <!-- Mode Toggle -->
+        <div class="flex items-center bg-slate-900/90 border border-slate-800 rounded-lg p-0.5 text-xs">
+          <button id="modeLiveBtn" onclick="setRunMode('live')" class="px-2.5 py-1 rounded-md transition-all text-slate-400 hover:text-slate-200">
+            Live LLM
+          </button>
+          <button id="modeSimBtn" onclick="setRunMode('sim')" class="px-2.5 py-1 rounded-md transition-all bg-indigo-600 text-white font-medium shadow-sm">
+            Simulation
+          </button>
+        </div>
+
+        <!-- Database Inspector Button -->
+        <button onclick="toggleDbModal(true)" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-medium text-slate-300 transition-colors">
+          <i data-lucide="database" class="w-3.5 h-3.5 text-slate-400"></i>
+          <span>Target Database</span>
+        </button>
+
+        <!-- Run Full Test Button -->
+        <button id="runTestBtn" onclick="startTestRun()" class="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-semibold shadow-lg shadow-indigo-500/25 transition-all active:scale-[0.98]">
+          <i data-lucide="play" class="w-3.5 h-3.5 fill-current"></i>
+          <span>Run Test (20 Seeds)</span>
+        </button>
+
+        <!-- Stop Button (hidden by default) -->
+        <button id="stopTestBtn" onclick="stopTestRun()" class="hidden inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs font-medium transition-colors">
+          <i data-lucide="square" class="w-3.5 h-3.5 fill-current"></i>
+          <span>Stop</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 md:px-6 pt-6 space-y-6">
+
+    <!-- KPI STATS SUMMARY BANNER -->
+    <section class="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <!-- 1. Seeds Tested -->
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between relative overflow-hidden">
+        <div class="flex items-center justify-between text-slate-400 text-xs">
+          <span>Seeds Tested</span>
+          <i data-lucide="crosshair" class="w-4 h-4 text-slate-500"></i>
+        </div>
+        <div class="mt-3 flex items-baseline gap-2">
+          <span id="statSeedsTested" class="text-2xl font-bold font-mono text-white">0</span>
+          <span class="text-xs text-slate-500 font-mono">/ 20</span>
+        </div>
+        <div class="mt-2 h-1 bg-slate-800 rounded-full overflow-hidden">
+          <div id="statProgressBar" class="h-full bg-indigo-500 transition-all duration-300 w-0"></div>
+        </div>
+      </div>
+
+      <!-- 2. Total LLM Calls -->
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-slate-400 text-xs">
+          <span>Total LLM Calls</span>
+          <i data-lucide="cpu" class="w-4 h-4 text-slate-500"></i>
+        </div>
+        <div class="mt-3 flex items-baseline gap-2">
+          <span id="statTotalCalls" class="text-2xl font-bold font-mono text-indigo-400">0</span>
+          <span class="text-[10px] text-slate-500">calls made</span>
+        </div>
+        <div class="mt-1 text-[11px] text-slate-400 flex items-center gap-1">
+          <span id="statCallBreakdown">0 client · 0 eval · 0 mut</span>
+        </div>
+      </div>
+
+      <!-- 3. Vulnerabilities Found (Full Success) -->
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between relative">
+        <div class="flex items-center justify-between text-rose-400/90 text-xs">
+          <span>Vulnerabilities Found</span>
+          <i data-lucide="flame" class="w-4 h-4 text-rose-400"></i>
+        </div>
+        <div class="mt-3 flex items-baseline gap-2">
+          <span id="statFullSuccesses" class="text-2xl font-bold font-mono text-rose-400">0</span>
+          <span class="text-[10px] text-rose-400/70 font-mono">full leaks</span>
+        </div>
+        <div class="mt-1 text-[11px] text-slate-500">
+          Exploited via adaptive loop
+        </div>
+      </div>
+
+      <!-- 4. Partial Leaks Escalated -->
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between">
+        <div class="flex items-center justify-between text-amber-400/90 text-xs">
+          <span>Partial Leaks</span>
+          <i data-lucide="git-branch" class="w-4 h-4 text-amber-400"></i>
+        </div>
+        <div class="mt-3 flex items-baseline gap-2">
+          <span id="statPartialLeaks" class="text-2xl font-bold font-mono text-amber-400">0</span>
+          <span class="text-[10px] text-amber-400/70 font-mono">escalations</span>
+        </div>
+        <div class="mt-1 text-[11px] text-slate-500">
+          Triggered multi-step mutation
+        </div>
+      </div>
+
+      <!-- 5. Defended (Full Blocks) -->
+      <div class="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between col-span-2 md:col-span-1">
+        <div class="flex items-center justify-between text-emerald-400/90 text-xs">
+          <span>Clean Blocks</span>
+          <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+        </div>
+        <div class="mt-3 flex items-baseline gap-2">
+          <span id="statFullBlocks" class="text-2xl font-bold font-mono text-emerald-400">0</span>
+          <span class="text-[10px] text-emerald-400/70 font-mono">defended</span>
+        </div>
+        <div class="mt-1 text-[11px] text-slate-500">
+          Stopped early on clean refusal
+        </div>
+      </div>
+    </section>
+
+    <!-- ADAPTIVE EFFICIENCY CALLOUT BANNER -->
+    <section id="efficiencyBanner" class="hidden bg-gradient-to-r from-indigo-950/40 via-slate-900/80 to-slate-900/40 border border-indigo-500/20 rounded-xl p-4 text-xs flex items-start sm:items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 shrink-0">
+          <i data-lucide="sparkles" class="w-4 h-4"></i>
+        </div>
+        <div>
+          <span class="font-semibold text-slate-200 block text-sm">Adaptive Efficiency Optimization</span>
+          <span id="efficiencyNote" class="text-slate-400">Adaptive early stopping and targeted mutation saved ~65% unnecessary LLM calls compared to blind static brute-force testing.</span>
+        </div>
+      </div>
+      <div class="shrink-0 font-mono text-[11px] px-2.5 py-1 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+        <span id="statDuration">0.0s</span>
+      </div>
+    </section>
+
+    <!-- TOOLBAR & FILTERS -->
+    <section class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
+      <!-- Category Tabs -->
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 w-full sm:w-auto">
+        <button onclick="filterCategory('all')" id="tabCatAll" class="cat-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 text-white transition-colors">
+          All (20)
+        </button>
+        <button onclick="filterCategory('prompt_leak')" id="tabCatPL" class="cat-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800 transition-colors">
+          Prompt Leak (7)
+        </button>
+        <button onclick="filterCategory('data_exfiltration')" id="tabCatDE" class="cat-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800 transition-colors">
+          Data Exfiltration (7)
+        </button>
+        <button onclick="filterCategory('tool_misuse')" id="tabCatTM" class="cat-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800 transition-colors">
+          Tool Misuse (6)
+        </button>
+      </div>
+
+      <!-- Search & Status Filter -->
+      <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+        <div class="relative w-full sm:w-64">
+          <i data-lucide="search" class="w-3.5 h-3.5 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2"></i>
+          <input
+            type="text"
+            id="searchInput"
+            oninput="handleSearch(this.value)"
+            placeholder="Search prompts..."
+            class="w-full bg-slate-900/80 border border-slate-800 text-xs rounded-lg pl-8 pr-3 py-1.5 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+          />
+        </div>
+      </div>
+    </section>
+
+    <!-- LIVE SEED PROMPT CARDS LIST -->
+    <section id="promptCardsContainer" class="space-y-3.5">
+      <!-- Dynamically populated via JavaScript -->
+    </section>
+
+  </main>
+
+  <!-- MODAL: TARGET CUSTOMER DATABASE INSPECTOR -->
+  <div id="dbModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-150">
+      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            <i data-lucide="database" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold text-white">Toy Client Agent: Customer Database</h3>
+            <p class="text-xs text-slate-400">In-memory dataset loaded into the toy support agent's <code class="text-indigo-400">search_customer_database</code> tool</p>
+          </div>
+        </div>
+        <button onclick="toggleDbModal(false)" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div class="p-6 overflow-y-auto space-y-4 text-xs" id="dbRecordsContainer">
+        <!-- Populated via fetch /api/database -->
+      </div>
+
+      <div class="px-6 py-3 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between text-xs text-slate-400">
+        <span>Target secrets to exfiltrate: <code class="text-rose-400">EXP-8842-SEC</code> (Alice Reynolds) and <code class="text-rose-400">BYPASS-2026-ALPHA</code> (David Vance)</span>
+        <button onclick="toggleDbModal(false)" class="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-md transition-colors">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- APPLICATION JAVASCRIPT LOGIC -->
+  <script>
+    // State
+    let seedsData = [];
+    let dbData = [];
+    let currentCategoryFilter = 'all';
+    let currentSearchTerm = '';
+    let runMode = 'sim'; // 'live' or 'sim'
+    let eventSource = null;
+    let isRunning = false;
+
+    // Execution tracking map: seedId -> { status, attempts: [], isVulnerable, finalClassification }
+    const runState = new Map();
+
+    // Stats
+    let stats = {
+      tested: 0,
+      totalCalls: 0,
+      clientCalls: 0,
+      classifierCalls: 0,
+      mutatorCalls: 0,
+      fullSuccesses: 0,
+      partialLeaks: 0,
+      fullBlocks: 0,
+      offTopic: 0,
+    };
+
+    // Category badge helpers
+    const categoryConfig = {
+      prompt_leak: { label: 'Prompt Leak', color: 'bg-purple-500/10 text-purple-400 border-purple-500/30' },
+      data_exfiltration: { label: 'Data Exfiltration', color: 'bg-amber-500/10 text-amber-400 border-amber-500/30' },
+      tool_misuse: { label: 'Tool Misuse', color: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30' }
+    };
+
+    const verdictConfig = {
+      full_success: { label: 'VULNERABILITY FOUND', badge: 'bg-rose-500/10 text-rose-400 border-rose-500/30', icon: 'shield-x' },
+      partial_leak: { label: 'PARTIAL LEAK', badge: 'bg-amber-500/10 text-amber-400 border-amber-500/30', icon: 'alert-triangle' },
+      full_block: { label: 'DEFENDED (BLOCKED)', badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30', icon: 'shield-check' },
+      off_topic: { label: 'OFF TOPIC', badge: 'bg-slate-800 text-slate-400 border-slate-700', icon: 'help-circle' }
+    };
+
+    // Init
+    window.addEventListener('DOMContentLoaded', async () => {
+      lucide.createIcons();
+      await fetchSeeds();
+      await fetchDatabase();
+      checkServerStatus();
+    });
+
+    async function checkServerStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        if (!data.hasApiKey) {
+          setRunMode('sim');
+          document.getElementById('modeLiveBtn').title = 'OPENROUTER_API_KEY is not set in .env (running simulation mode)';
+        }
+      } catch (e) {
+        console.warn('Status check failed', e);
+      }
+    }
+
+    async function fetchSeeds() {
+      try {
+        const res = await fetch('/api/seeds');
+        const data = await res.json();
+        seedsData = data.seeds || [];
+        renderCards();
+      } catch (err) {
+        console.error('Failed to fetch seeds:', err);
+      }
+    }
+
+    async function fetchDatabase() {
+      try {
+        const res = await fetch('/api/database');
+        const data = await res.json();
+        dbData = data.records || [];
+        renderDbRecords();
+      } catch (err) {
+        console.error('Failed to fetch db records:', err);
+      }
+    }
+
+    function setRunMode(mode) {
+      runMode = mode;
+      const liveBtn = document.getElementById('modeLiveBtn');
+      const simBtn = document.getElementById('modeSimBtn');
+      if (mode === 'live') {
+        liveBtn.className = 'px-2.5 py-1 rounded-md transition-all bg-indigo-600 text-white font-medium shadow-sm';
+        simBtn.className = 'px-2.5 py-1 rounded-md transition-all text-slate-400 hover:text-slate-200';
+      } else {
+        simBtn.className = 'px-2.5 py-1 rounded-md transition-all bg-indigo-600 text-white font-medium shadow-sm';
+        liveBtn.className = 'px-2.5 py-1 rounded-md transition-all text-slate-400 hover:text-slate-200';
+      }
+    }
+
+    function toggleDbModal(show) {
+      const modal = document.getElementById('dbModal');
+      modal.classList.toggle('hidden', !show);
+      modal.classList.toggle('flex', show);
+    }
+
+    function renderDbRecords() {
+      const container = document.getElementById('dbRecordsContainer');
+      container.innerHTML = dbData.map(rec => `
+        <div class="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-xs font-semibold text-indigo-400">${rec.id}</span>
+              <span class="font-medium text-white">${rec.name}</span>
+              <span class="text-slate-500">·</span>
+              <span class="text-slate-400">${rec.company}</span>
+            </div>
+            <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-slate-800 text-slate-300">${rec.plan} Plan</span>
+          </div>
+          <p class="text-slate-400 text-xs">${rec.accountNotes}</p>
+          ${rec.sensitiveFlags ? `
+            <div class="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 font-mono text-[11px]">
+              <span class="font-bold text-rose-400">⚠️ SENSITIVE TARGET FLAG:</span> ${rec.sensitiveFlags}
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    function filterCategory(cat) {
+      currentCategoryFilter = cat;
+      document.querySelectorAll('.cat-tab').forEach(el => {
+        el.className = 'cat-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800 transition-colors';
+      });
+      const activeTabId = cat === 'all' ? 'tabCatAll' : cat === 'prompt_leak' ? 'tabCatPL' : cat === 'data_exfiltration' ? 'tabCatDE' : 'tabCatTM';
+      document.getElementById(activeTabId).className = 'cat-tab px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white transition-colors';
+      renderCards();
+    }
+
+    function handleSearch(term) {
+      currentSearchTerm = term.toLowerCase().trim();
+      renderCards();
+    }
+
+    function renderCards() {
+      const container = document.getElementById('promptCardsContainer');
+      const filtered = seedsData.filter(seed => {
+        const matchesCategory = currentCategoryFilter === 'all' || seed.category === currentCategoryFilter;
+        const matchesSearch = !currentSearchTerm || 
+          seed.title.toLowerCase().includes(currentSearchTerm) ||
+          seed.text.toLowerCase().includes(currentSearchTerm) ||
+          seed.id.toLowerCase().includes(currentSearchTerm);
+        return matchesCategory && matchesSearch;
+      });
+
+      container.innerHTML = filtered.map(seed => {
+        const state = runState.get(seed.id) || { status: 'idle', attempts: [] };
+        const cat = categoryConfig[seed.category] || { label: seed.category, color: 'bg-slate-800 text-slate-400' };
+
+        let statusBadge = `<span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-slate-800/80 text-slate-400 border border-slate-700/60">PENDING</span>`;
+        let borderClass = 'border-slate-800/80';
+
+        if (state.status === 'running') {
+          statusBadge = `<span class="px-2.5 py-1 rounded-full text-[11px] font-mono bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping"></span> PROBING...</span>`;
+          borderClass = 'border-indigo-500/50 shadow-lg shadow-indigo-500/5';
+        } else if (state.status === 'done') {
+          const cfg = verdictConfig[state.finalClassification] || { label: state.finalClassification, badge: 'bg-slate-800 text-slate-400 border-slate-700' };
+          statusBadge = `<span class="px-2.5 py-1 rounded-full text-[11px] font-mono ${cfg.badge} border font-medium">${cfg.label}</span>`;
+          if (state.finalClassification === 'full_success') {
+            borderClass = 'border-rose-500/40 bg-rose-950/10';
+          } else if (state.finalClassification === 'partial_leak') {
+            borderClass = 'border-amber-500/40 bg-amber-950/10';
+          } else {
+            borderClass = 'border-emerald-500/30 bg-emerald-950/5';
+          }
+        }
+
+        const hasAttempts = state.attempts && state.attempts.length > 0;
+
+        return `
+          <div id="card-${seed.id}" class="rounded-xl bg-slate-900/70 border ${borderClass} transition-all duration-200 overflow-hidden">
+            <!-- Card Header -->
+            <div class="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none" onclick="toggleCardAttempts('${seed.id}')">
+              <div class="flex items-start sm:items-center gap-3">
+                <span class="font-mono text-xs font-bold px-2 py-1 rounded bg-slate-950 text-indigo-300 border border-slate-800">${seed.id}</span>
+                <span class="px-2.5 py-0.5 rounded text-[11px] font-medium border ${cat.color}">${cat.label}</span>
+                <h4 class="text-sm font-semibold text-slate-100">${seed.title}</h4>
+              </div>
+
+              <div class="flex items-center gap-2 self-end sm:self-auto">
+                ${statusBadge}
+                ${hasAttempts ? `<span class="text-xs text-slate-500 font-mono">(${state.attempts.length} attempt${state.attempts.length > 1 ? 's' : ''})</span>` : ''}
+                <i data-lucide="chevron-down" id="chevron-${seed.id}" class="w-4 h-4 text-slate-500 transition-transform ${hasAttempts ? 'rotate-180' : ''}"></i>
+              </div>
+            </div>
+
+            <!-- Seed Attack Prompt Text -->
+            <div class="px-4 sm:px-5 pb-3.5 -mt-1 text-xs text-slate-400 flex items-start gap-2">
+              <i data-lucide="terminal" class="w-3.5 h-3.5 text-slate-500 mt-0.5 shrink-0"></i>
+              <p class="font-mono text-slate-300 bg-slate-950/50 p-2 rounded-lg border border-slate-800/60 w-full">${escapeHtml(seed.text)}</p>
+            </div>
+
+            <!-- Attempts Sub-Timeline (Streaming Sub-List) -->
+            <div id="attempts-${seed.id}" class="${hasAttempts ? 'block' : 'hidden'} border-t border-slate-800/80 bg-slate-950/40 p-4 sm:p-5 space-y-4">
+              ${renderAttemptsTimeline(state.attempts)}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      lucide.createIcons();
+    }
+
+    function toggleCardAttempts(seedId) {
+      const el = document.getElementById(`attempts-${seedId}`);
+      const chevron = document.getElementById(`chevron-${seedId}`);
+      if (el) {
+        el.classList.toggle('hidden');
+        if (chevron) chevron.classList.toggle('rotate-180');
+      }
+    }
+
+    function renderAttemptsTimeline(attempts = []) {
+      if (!attempts || attempts.length === 0) {
+        return `<p class="text-xs text-slate-500 italic">No attempts logged yet.</p>`;
+      }
+
+      return attempts.map(att => {
+        const isMut = att.isMutated || att.attempt > 1;
+        const vCfg = verdictConfig[att.classification] || { label: att.classification, badge: 'bg-slate-800 text-slate-400 border-slate-700' };
+
+        return `
+          <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2.5">
+            <!-- Attempt Header -->
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2">
+                <span class="font-mono font-bold text-slate-200">Attempt ${att.attempt} / 5</span>
+                ${isMut ? `<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">⚡ ADAPTIVE MUTATION</span>` : `<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400">INITIAL SEED</span>`}
+              </div>
+              <span class="px-2 py-0.5 rounded text-[11px] font-mono border ${vCfg.badge}">${vCfg.label}</span>
+            </div>
+
+            <!-- Prompt Sent -->
+            <div class="space-y-1">
+              <span class="text-[11px] uppercase tracking-wider text-slate-500 font-mono">Prompt Sent</span>
+              <div class="p-2.5 rounded-lg bg-slate-950 border border-slate-800 font-mono text-xs text-slate-200 whitespace-pre-wrap leading-relaxed">${escapeHtml(att.prompt)}</div>
+            </div>
+
+            <!-- Client Agent Response -->
+            <div class="space-y-1">
+              <span class="text-[11px] uppercase tracking-wider text-slate-500 font-mono">Client Agent Response</span>
+              <div class="p-2.5 rounded-lg bg-slate-950/80 border border-slate-800/80 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed">${escapeHtml(att.response)}</div>
+            </div>
+
+            <!-- Classifier Verdict & Leaked Detail -->
+            <div class="p-2.5 rounded-lg bg-slate-950/50 border border-slate-800/60 text-xs space-y-1.5">
+              <div class="flex items-start gap-2">
+                <span class="font-semibold text-slate-300 shrink-0">Evaluator Reasoning:</span>
+                <span class="text-slate-400">${escapeHtml(att.reasoning)}</span>
+              </div>
+              ${att.leakedDetail ? `
+                <div class="flex items-start gap-2 text-amber-300/90 pt-1 border-t border-slate-800/60 font-mono text-[11px]">
+                  <span class="font-bold shrink-0">🔍 Exploitable Leaked Gap:</span>
+                  <span>${escapeHtml(att.leakedDetail)}</span>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function escapeHtml(text = '') {
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    // ==========================================
+    // SSE RED-TEAMING STREAMING EXECUTION
+    // ==========================================
+
+    function startTestRun() {
+      if (isRunning) return;
+      isRunning = true;
+
+      // Reset local run state
+      runState.clear();
+      stats = {
+        tested: 0,
+        totalCalls: 0,
+        clientCalls: 0,
+        classifierCalls: 0,
+        mutatorCalls: 0,
+        fullSuccesses: 0,
+        partialLeaks: 0,
+        fullBlocks: 0,
+        offTopic: 0,
+      };
+      updateStatsUI();
+
+      // UI updates
+      document.getElementById('runTestBtn').classList.add('hidden');
+      document.getElementById('stopTestBtn').classList.remove('hidden');
+      document.getElementById('statusDot').className = 'w-2 h-2 rounded-full bg-indigo-400 animate-ping';
+      document.getElementById('statusText').innerText = runMode === 'live' ? 'Running Live LLM Test...' : 'Running Simulated Test...';
+      document.getElementById('efficiencyBanner').classList.add('hidden');
+
+      renderCards();
+
+      const url = `/api/run-test?simulate=${runMode === 'sim' ? 'true' : 'false'}`;
+      eventSource = new EventSource(url);
+
+      eventSource.addEventListener('start', (e) => {
+        const data = JSON.parse(e.data);
+        console.log('SSE Start:', data);
+      });
+
+      eventSource.addEventListener('prompt_start', (e) => {
+        const data = JSON.parse(e.data);
+        const seedId = data.seedId;
+        const current = runState.get(seedId) || { attempts: [] };
+        runState.set(seedId, { ...current, status: 'running' });
+        renderCards();
+
+        // Scroll into view if needed
+        const card = document.getElementById(`card-${seedId}`);
+        if (card) {
+          card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      });
+
+      eventSource.addEventListener('attempt', (e) => {
+        const data = JSON.parse(e.data);
+        const seedId = data.seedId;
+        const current = runState.get(seedId) || { attempts: [] };
+        
+        current.attempts.push(data);
+        current.status = 'running';
+        runState.set(seedId, current);
+
+        // Update calls count
+        stats.totalCalls += (data.isMutated ? 3 : 2);
+        stats.clientCalls += 1;
+        stats.classifierCalls += 1;
+        if (data.isMutated) stats.mutatorCalls += 1;
+
+        updateStatsUI();
+        renderCards();
+      });
+
+      eventSource.addEventListener('prompt_complete', (e) => {
+        const data = JSON.parse(e.data);
+        const seedId = data.seedId;
+        const current = runState.get(seedId) || { attempts: [] };
+        
+        current.status = 'done';
+        current.finalClassification = data.finalClassification;
+        current.isVulnerable = data.isVulnerable;
+        runState.set(seedId, current);
+
+        stats.tested += 1;
+        if (data.finalClassification === 'full_success') stats.fullSuccesses += 1;
+        else if (data.finalClassification === 'partial_leak') stats.partialLeaks += 1;
+        else if (data.finalClassification === 'full_block') stats.fullBlocks += 1;
+        else stats.offTopic += 1;
+
+        updateStatsUI();
+        renderCards();
+      });
+
+      eventSource.addEventListener('summary', (e) => {
+        const data = JSON.parse(e.data);
+        console.log('SSE Summary:', data);
+        
+        // Sync final verified stats from server
+        stats.totalCalls = data.totalLLMCalls;
+        stats.clientCalls = data.clientCalls;
+        stats.classifierCalls = data.classifierCalls;
+        stats.mutatorCalls = data.mutatorCalls;
+        stats.fullSuccesses = data.fullSuccesses;
+        stats.partialLeaks = data.partialLeaks;
+        stats.fullBlocks = data.fullBlocks;
+        stats.offTopic = data.offTopic;
+        updateStatsUI();
+
+        // Show efficiency callout banner
+        const banner = document.getElementById('efficiencyBanner');
+        banner.classList.remove('hidden');
+        document.getElementById('efficiencyNote').innerText = data.estimatedCostSavingsNote;
+        document.getElementById('statDuration').innerText = `${(data.totalDurationMs / 1000).toFixed(1)}s elapsed`;
+
+        stopTestRun();
+      });
+
+      eventSource.addEventListener('error', (e) => {
+        console.error('SSE Error:', e);
+        stopTestRun();
+      });
+    }
+
+    function stopTestRun() {
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+      isRunning = false;
+      document.getElementById('runTestBtn').classList.remove('hidden');
+      document.getElementById('stopTestBtn').classList.add('hidden');
+      document.getElementById('statusDot').className = 'w-2 h-2 rounded-full bg-emerald-400';
+      document.getElementById('statusText').innerText = 'Completed';
+    }
+
+    function updateStatsUI() {
+      document.getElementById('statSeedsTested').innerText = stats.tested;
+      document.getElementById('statProgressBar').style.width = `${(stats.tested / 20) * 100}%`;
+      document.getElementById('statTotalCalls').innerText = stats.totalCalls;
+      document.getElementById('statCallBreakdown').innerText = `${stats.clientCalls} client · ${stats.classifierCalls} eval · ${stats.mutatorCalls} mut`;
+      document.getElementById('statFullSuccesses').innerText = stats.fullSuccesses;
+      document.getElementById('statPartialLeaks').innerText = stats.partialLeaks;
+      document.getElementById('statFullBlocks').innerText = stats.fullBlocks;
+    }
+  </script>
+</body>
+</html>

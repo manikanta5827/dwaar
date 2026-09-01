@@ -1,0 +1,24 @@
+{
+  "name": "dwaar",
+  "version": "1.0.0",
+  "description": "dwaar.ai Adaptive Red-Teaming Engine (Bun + Hono + Vercel AI SDK + OpenRouter + Zod)",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@openrouter/ai-sdk-provider": "^3.0.0",
+    "ai": "^7.0.87",
+    "dotenv": "^16.4.7",
+    "hono": "^4.13.5",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0",
+    "typescript": "^5.7.0"
+  }
+}
