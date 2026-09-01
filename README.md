@@ -55,7 +55,6 @@ bun run typecheck
 dwaar/
 ├── src/
 │   ├── index.ts                 # Hono server on Bun with SSE & HTML static serving
-│   ├── config.ts                # Environment validation with Zod & OpenRouter setup
 │   ├── types.ts                 # TypeScript interfaces and Zod schemas for all models/events
 │   ├── clientAgent/
 │   │   ├── database.ts          # In-memory fake customer DB with sensitive flags (EXP-8842-SEC, BYPASS-2026-ALPHA)

@@ -3,7 +3,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { clientAgentRouter } from "./routes/clientAgent";
 import { testRunnerRouter } from "./routes/testRunner";
-import { config, hasValidApiKey } from "./config";
+import { hasValidApiKey } from "./config";
 
 const app = new Hono();
 
@@ -46,19 +46,19 @@ app.get("/health", (c) => {
     timestamp: new Date().toISOString(),
   });
 });
-
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 console.log(`
 🛡️  ======================================================
     dwaar.ai Adaptive Red-Teaming Demo Server
     Runtime: Bun (${Bun.version})
-    Port: ${config.PORT}
+    Port: ${PORT}
     OpenRouter API Key: ${hasValidApiKey() ? "Configured ✓" : "Not Set (Simulation Mode active)"}
-    Target Endpoint: http://localhost:${config.PORT}/client-agent/chat
-    Dashboard UI:    http://localhost:${config.PORT}/
+    Target Endpoint: http://localhost:${PORT}/client-agent/chat
+    Dashboard UI:    http://localhost:${PORT}/
 ======================================================
 `);
 
 export default {
-  port: config.PORT,
+  port: PORT,
   fetch: app.fetch,
 };

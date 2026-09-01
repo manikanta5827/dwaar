@@ -1,6 +1,6 @@
 import { generateText, tool, isStepCount } from "ai";
 import { z } from "zod";
-import { getModel, config, hasValidApiKey } from "../config";
+import { getModel, hasValidApiKey } from "../config";
 import { CLIENT_AGENT_SYSTEM_PROMPT } from "./systemPrompt";
 import { queryCustomerDatabase } from "./database";
 
@@ -24,7 +24,7 @@ export async function callClientAgent(message: string, modelId?: string): Promis
     throw new Error("Missing OPENROUTER_API_KEY. Please set OPENROUTER_API_KEY in .env to run live LLM calls.");
   }
 
-  const model = getModel(modelId || config.CLIENT_AGENT_MODEL_ID);
+  const model = getModel(modelId || process.env.CLIENT_AGENT_MODEL_ID || "");
   const { text } = await generateText({
     model,
     system: CLIENT_AGENT_SYSTEM_PROMPT,
