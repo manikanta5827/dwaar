@@ -78,4 +78,5 @@ console.log(`
 export default {
   port: config.PORT,
   fetch: app.fetch,
+  idleTimeout: 255, // 255 seconds for long-lived Server-Sent Events (SSE) streams
 };
