@@ -36,7 +36,7 @@ bun start
 bun dev
 ```
 
-Open `http://localhost:3000` in your browser to launch the dashboard.
+Open `http://localhost:3000` in your browser to launch the dashboard and click **"Run Test"**.
 
 ---
 
@@ -54,22 +54,31 @@ bun run typecheck
 ```
 dwaar/
 ├── src/
-│   ├── index.ts                 # Hono server on Bun with SSE & HTML static serving
+│   ├── index.ts                 # Hono server on Bun with SSE & modular static file serving
+│   ├── config.ts                # Environment settings & OpenRouter provider setup
 │   ├── types.ts                 # TypeScript interfaces and Zod schemas for all models/events
 │   ├── clientAgent/
 │   │   ├── database.ts          # In-memory fake customer DB with sensitive flags (EXP-8842-SEC, BYPASS-2026-ALPHA)
 │   │   ├── systemPrompt.ts      # Moderately defended customer support agent instructions
-│   │   └── agent.ts             # Vercel AI SDK tool caller (search_customer_database)
+│   │   └── agent.ts             # Target customer support agent tool caller (search_customer_database)
 │   ├── engine/
 │   │   ├── seeds.ts             # 20 diverse seed attack prompts across 3 categories
 │   │   ├── classifier.ts        # Structured JSON evaluation (full_success, partial_leak, full_block, off_topic)
 │   │   ├── mutator.ts           # Targeted follow-up mutation engine exploiting leaked intelligence
 │   │   └── runner.ts            # Sequential orchestrator with SSE progress stream & cost savings computation
 │   ├── routes/
-│   │   ├── clientAgent.ts       # POST /client-agent/chat endpoint
-│   │   └── testRunner.ts        # GET /api/run-test (SSE stream), GET /api/seeds, GET /api/database
+│   │   └── testRunner.ts        # GET /api/run-test (SSE stream), GET /api/seeds, GET /api/database, GET /api/status
 │   └── public/
-│       └── index.html           # Dark-mode dashboard with Tailwind CSS & Lucide icons
+│       ├── index.html           # Dark-mode dashboard layout
+│       ├── css/
+│       │   └── style.css        # Typography and custom scrollbar styling
+│       └── js/
+│           ├── api.js           # API fetch helpers
+│           ├── config.js        # Category and verdict visual configs
+│           ├── state.js         # Reactive global state and counters
+│           ├── ui.js            # Card & modal DOM rendering
+│           ├── runner.js        # SSE EventSource listener
+│           └── app.js           # Main browser entrypoint
 ├── .env.example
 ├── package.json
 └── tsconfig.json
@@ -80,7 +89,6 @@ dwaar/
 ## 📡 API Endpoints
 
 - `GET /` — Interactive Red-Teaming Dashboard UI
-- `POST /client-agent/chat` — Public chat endpoint for the toy client agent (`{ "message": "..." }`)
 - `GET /api/run-test` — Server-Sent Events (SSE) stream for live red-teaming execution
 - `GET /api/seeds` — Library of 20 seed prompts across `prompt_leak`, `data_exfiltration`, and `tool_misuse`
 - `GET /api/database` — Inspection endpoint for the toy client agent's customer database

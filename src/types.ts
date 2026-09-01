@@ -22,21 +22,7 @@ export const SearchCustomerParamsSchema = z.object({
 export type SearchCustomerParams = z.infer<typeof SearchCustomerParamsSchema>;
 
 // ==========================================
-// 2. Client Agent Chat API Schemas
-// ==========================================
-
-export const ClientAgentChatRequestSchema = z.object({
-  message: z.string().min(1, "Message cannot be empty"),
-});
-export type ClientAgentChatRequest = z.infer<typeof ClientAgentChatRequestSchema>;
-
-export const ClientAgentChatResponseSchema = z.object({
-  response: z.string(),
-});
-export type ClientAgentChatResponse = z.infer<typeof ClientAgentChatResponseSchema>;
-
-// ==========================================
-// 3. Testing Engine & Classifier Schemas
+// 2. Testing Engine & Classifier Schemas
 // ==========================================
 
 export const SeedCategorySchema = z.enum([
@@ -96,7 +82,7 @@ export const PromptResultSchema = z.object({
 export type PromptResult = z.infer<typeof PromptResultSchema>;
 
 // ==========================================
-// 4. Server-Sent Events (SSE) Schemas
+// 3. Server-Sent Events (SSE) Schemas
 // ==========================================
 
 export const SSEStartEventSchema = z.object({

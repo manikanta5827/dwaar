@@ -1,7 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { clientAgentRouter } from "./routes/clientAgent";
 import { testRunnerRouter } from "./routes/testRunner";
 import { config, hasValidApiKey } from "./config";
 
@@ -12,7 +11,6 @@ app.use("*", logger());
 app.use("*", cors());
 
 // Mount API Routes
-app.route("/client-agent", clientAgentRouter);
 app.route("/api", testRunnerRouter);
 
 // Static Assets Directory
@@ -70,7 +68,6 @@ console.log(`
     Runtime: Bun (${Bun.version})
     Port: ${config.PORT}
     OpenRouter API Key: ${hasValidApiKey() ? "Configured ✓" : "Not Set"}
-    Target Endpoint: http://localhost:${config.PORT}/client-agent/chat
     Dashboard UI:    http://localhost:${config.PORT}/
 ======================================================
 `);
